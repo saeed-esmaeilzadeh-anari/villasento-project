@@ -1,0 +1,54 @@
+name: Build and type validation
+
+on:
+  push:
+    branches:
+      - main
+      - "fix/**"
+      - "feat/**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  next-app:
+    name: Next.js frontend and API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: file:./db/ci.db
+      AUTH_SECRET: ci-only-not-for-production
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run TypeScript validation
+        run: npm run typecheck
+      - name: Build frontend and API
+        run: npm run build
+
+  nest-backend:
+    name: Legacy NestJS backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: mini-services/vilasa-backend
+      - name: Build NestJS backend
+        run: bun run build
+        working-directory: mini-services/vilasa-backend

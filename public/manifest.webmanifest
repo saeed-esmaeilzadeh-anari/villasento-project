@@ -1,0 +1,19 @@
+{
+  "name": "ویلاسا | رزرو باغ‌ویلا و اقامتگاه",
+  "short_name": "ویلاسا",
+  "description": "بازار آنلاین اجاره و رزرو باغ‌ویلا و اقامتگاه در ایران",
+  "start_url": "/",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "fa",
+  "background_color": "#faf9f7",
+  "theme_color": "#0d5c46",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

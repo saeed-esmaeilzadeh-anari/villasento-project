@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /#/admin
+Disallow: /#/account
+Disallow: /#/new-listing
+
+# Dynamic sitemap (all published listings, articles and pages)
+Sitemap: /api/sitemap

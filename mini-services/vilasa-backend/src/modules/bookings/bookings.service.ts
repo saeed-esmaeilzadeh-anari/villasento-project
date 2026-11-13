@@ -60,7 +60,9 @@ export class BookingsService {
     const days = await this.prisma.calendarDay.findMany({
       where: { propertyId, date: { in: nights } },
     });
-    const dayMap = new Map(days.map((d) => [d.date, d]));
+    const dayMap = new Map<string, (typeof days)[number]>(
+      days.map((day) => [day.date, day] as const),
+    );
 
     const nightly = nights.map((date) => {
       const custom = dayMap.get(date);

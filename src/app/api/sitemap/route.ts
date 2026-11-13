@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/sitemap — dynamic XML sitemap of all published listings + articles + pages.
  * Point robots.txt to this endpoint (or pre-render public/sitemap.xml via `bun scripts/sitemap.ts`).

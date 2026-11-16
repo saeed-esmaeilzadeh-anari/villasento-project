@@ -54,3 +54,8 @@ server.log
 /skills/
 # user-uploaded media
 uploads/
+
+# SQLite database files
+/db/*.db
+/db/*.db-shm
+/db/*.db-wal

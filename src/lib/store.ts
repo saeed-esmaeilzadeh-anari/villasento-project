@@ -106,7 +106,7 @@ export const useCompare = create<CompareState>()(
       },
       clear: () => set({ ids: [], items: {} }),
     }),
-    { name: "villasento-compare" }
+    { name: "villasento-compare", skipHydration: true }
   )
 );
 
@@ -127,7 +127,7 @@ export const useHistory = create<HistoryState>()(
       },
       clear: () => set({ ids: [] }),
     }),
-    { name: "villasento-history" }
+    { name: "villasento-history", skipHydration: true }
   )
 );
 

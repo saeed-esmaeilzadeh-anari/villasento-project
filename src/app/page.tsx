@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRoute } from "@/lib/router";
-import { useAuth, useHistory } from "@/lib/store";
+import { useAuth, useHistory, useCompare } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Header, DemoHint } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
@@ -23,6 +23,11 @@ function AppShell() {
   const pushHistory = useHistory((s) => s.push);
 
   useEffect(() => {
+    // Controlled zustand persistence: both persisted stores use skipHydration,
+    // so localStorage values are merged ONLY after React hydration — the first
+    // client render always matches the server markup (no badge/count mismatch).
+    useCompare.persist.rehydrate();
+    useHistory.persist.rehydrate();
     fetchMe();
   }, [fetchMe]);
 
@@ -30,7 +35,7 @@ function AppShell() {
   useEffect(() => {
     if (route.params.get("auth") === "1") openAuth();
      
-  }, []);
+  }, [route.params]);
 
   const path = route.path;
 

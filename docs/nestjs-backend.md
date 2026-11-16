@@ -30,11 +30,14 @@ bun run dev:watch      # tsc -w + node --watch (اتورستارت)
 bun run db:push        # همگام‌سازی اسکیما (فقط وقتی اسکیما تغییر کرده)
 ```
 
-`.env`:
+`.env` (الگوی کامل: `.env.example` در همان پوشه — مرجع: `docs/env-guide.md`):
 ```ini
-DATABASE_URL="file:../../db/custom.db"   # همان دیتابیس Next.js
-AUTH_SECRET="vilasa-dev-secret-do-not-use-in-prod"  # باید با فرانت یکی باشد (SSO)
-PORT=3002
+DATABASE_URL="file:../../../db/custom.db"   # همان دیتابیس Next.js (نسبت به پوشه prisma/)
+AUTH_SECRET="...-same-as-frontend..."       # باید با فرانت‌اند یکی باشد (SSO)
+SESSION_COOKIE_NAME="villasento_session"    # باید با فرانت‌اند یکی باشد (SSO)
+CORS_ORIGIN=""                              # در Production محدود به دامنه واقعی
+NODE_ENV="development"
+PORT="3002"
 ```
 
 ## ۳) اتصالات برقرارشده (تمامی ارتباطات)

@@ -6,7 +6,9 @@ import { createHmac, timingSafeEqual } from "crypto";
  * by either server is valid on the other one (same cookie & secret).
  */
 
-export const COOKIE_NAME = "vilasa_session";
+// MUST match the Next.js frontend cookie (SESSION_COOKIE_NAME in .env on
+// both sides) — same cookie name + same AUTH_SECRET = shared-session SSO.
+export const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "villasento_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 export type SessionPayload = { uid: string; role: string; iat: number; exp: number };

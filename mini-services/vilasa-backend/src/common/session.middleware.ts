@@ -22,7 +22,7 @@ export interface VilasaRequest extends Request {
 }
 
 /**
- * Resolves the shared `vilasa_session` HMAC cookie on every request —
+ * Resolves the shared session HMAC cookie (see SESSION_COOKIE_NAME in .env) —
  * identical algorithm & secret to the Next.js app → a login performed on
  * either server is automatically valid on the other (SSO).
  */

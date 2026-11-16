@@ -1,4 +1,9 @@
-@import "tailwindcss";
+/* Tailwind v4 automatic source detection is restricted to src/ ONLY.
+   source() resolves relative to the imported `tailwindcss` package folder
+   (node_modules/tailwindcss/) -> "../../src" = <project>/src.
+   Never scan the project root: db/*.db-shm & *.db-wal are OS-locked by
+   SQLite -> Turbopack panic "The process cannot access the file (os error 33)". */
+@import "tailwindcss" source("../../src");
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));

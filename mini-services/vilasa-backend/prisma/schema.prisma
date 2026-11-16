@@ -81,6 +81,7 @@ model Amenity {
 
 model Property {
   id             String   @id @default(cuid())
+  code           String   @unique
   hostId         String
   host           User     @relation(fields: [hostId], references: [id])
   title          String

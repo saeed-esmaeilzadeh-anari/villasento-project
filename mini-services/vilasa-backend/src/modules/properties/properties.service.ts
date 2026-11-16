@@ -221,6 +221,16 @@ export class PropertiesService {
 
   // ───────────────────────── Host CRUD ─────────────────────────
 
+  /** Unique listing code, same format as the Next.js app (VS-XXXXXX). */
+  private async generateCode(): Promise<string> {
+    for (let i = 0; i < 5; i++) {
+      const candidate = "VS-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+      const exists = await this.prisma.property.findUnique({ where: { code: candidate } });
+      if (!exists) return candidate;
+    }
+    return "VS-" + Date.now().toString(36).toUpperCase();
+  }
+
   async createProperty(host: SafeUser, input: PropertyInput) {
     if (!input.title?.trim()) throw badRequest("عنوان اقامتگاه الزامی است");
     if (!input.cityId) throw badRequest("شهر را انتخاب کنید");
@@ -229,6 +239,7 @@ export class PropertiesService {
 
     const prop = await this.prisma.property.create({
       data: {
+        code: await this.generateCode(),
         hostId: host.id,
         title: input.title.trim(),
         type: input.type && input.type in PROPERTY_TYPES ? input.type : "VILLA",

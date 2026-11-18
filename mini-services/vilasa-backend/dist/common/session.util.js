@@ -10,7 +10,9 @@ const crypto_1 = require("crypto");
  * with the Next.js implementation (src/server/session.ts). A session created
  * by either server is valid on the other one (same cookie & secret).
  */
-exports.COOKIE_NAME = "vilasa_session";
+// MUST match the Next.js frontend cookie (SESSION_COOKIE_NAME in .env on
+// both sides) — same cookie name + same AUTH_SECRET = shared-session SSO.
+exports.COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "villasento_session";
 exports.SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 function secret() {
     return process.env.AUTH_SECRET || "vilasa-dev-secret-do-not-use-in-prod";

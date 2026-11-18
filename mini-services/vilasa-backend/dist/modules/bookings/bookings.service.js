@@ -45,7 +45,7 @@ let BookingsService = class BookingsService {
         const days = await this.prisma.calendarDay.findMany({
             where: { propertyId, date: { in: nights } },
         });
-        const dayMap = new Map(days.map((d) => [d.date, d]));
+        const dayMap = new Map(days.map((day) => [day.date, day]));
         const nightly = nights.map((date) => {
             const custom = dayMap.get(date);
             const price = custom?.price ?? ((0, dates_util_1.isWeekend)(date) ? prop.weekendPrice : prop.basePrice);

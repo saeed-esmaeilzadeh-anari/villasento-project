@@ -18,8 +18,10 @@ export type UploadResult = { url: string; width: number; height: number; size: n
  */
 export async function saveImage(file: File, folder = "misc"): Promise<UploadResult> {
   if (!file || typeof file.arrayBuffer !== "function") throw badRequest("فایلی ارسال نشده است");
-  const maxBytes = MAX_BYTES_DEFAULT;
-  if (file.size > maxBytes) throw badRequest(`حجم فایل باید کمتر از ${Math.round(maxBytes / 1048576)} مگابایت باشد`);
+  const configuredMaxMB = Number((await getSetting("upload.maxSizeMB")) ?? 5);
+  const maxMB = Number.isFinite(configuredMaxMB) && configuredMaxMB > 0 ? configuredMaxMB : 5;
+  const maxBytes = maxMB * 1024 * 1024;
+  if (file.size > maxBytes) throw badRequest(`حجم فایل باید کمتر از ${maxMB} مگابایت باشد`);
   if (file.type && !ALLOWED.includes(file.type)) throw badRequest("فرمت تصویر باید JPG، PNG یا WebP باشد");
 
   const buf = Buffer.from(await file.arrayBuffer());

@@ -100,9 +100,16 @@ const createSchema = z.object({
 /** POST /api/properties — create listing (draft or submit for review) */
 export const POST = handler(async (req: Request) => {
   const user = await requireUser();
-  await limitOrThrow(`listing-create:${user.id}`, 10, 3600 * 1000);
-  const ip = clientIp(req);
-  await limitOrThrow(`listing-create-ip:${ip}`, 20, 3600 * 1000);
+  // Validate the request before consuming any rate-limit quota.
   const body = await parseBody(req, createSchema);
+
+  // Keep abuse protection enabled in production, but do not block local
+  // development workflows while forms and uploads are being tested.
+  if (process.env.NODE_ENV === "production") {
+    await limitOrThrow(`listing-create:${user.id}`, 10, 3600 * 1000);
+    const ip = clientIp(req);
+    await limitOrThrow(`listing-create-ip:${ip}`, 20, 3600 * 1000);
+  }
+
   return ok(await Props.createProperty(user, body as Props.ListingInput));
 });

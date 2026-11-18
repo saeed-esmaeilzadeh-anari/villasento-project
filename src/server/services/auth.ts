@@ -166,14 +166,28 @@ export async function register(rawPhone: string, password: string, passwordConfi
   if (existing) throw badRequest("این شماره موبایل قبلاً ثبت شده است؛ وارد شوید یا رمز را بازیابی کنید");
   const name = String(fullName ?? "").trim();
   if (name.length > 80) throw badRequest("نام و نام خانوادگی طولانی است");
-  const user = await db.user.create({
-    data: {
-      phone,
-      fullName: name || null,
-      passwordHash: hashPassword(password),
-      role: "CUSTOMER",
-    },
-  });
+  let user: Awaited<ReturnType<typeof db.user.create>>;
+  try {
+    user = await db.user.create({
+      data: {
+        phone,
+        fullName: name || null,
+        passwordHash: hashPassword(password),
+        role: "CUSTOMER",
+      },
+    });
+  } catch (error) {
+    // Another request may register the same phone between the lookup and insert.
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      throw badRequest("این شماره موبایل قبلاً ثبت شده است؛ وارد شوید یا رمز را بازیابی کنید");
+    }
+    throw error;
+  }
   await createSession(user.id, user.role);
   await audit({ actorId: user.id, actorPhone: phone, action: "AUTH_REGISTER", entity: "User", entityId: user.id });
   return { ok: true, user: safeUser({ ...user, hasPassword: true }) };

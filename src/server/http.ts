@@ -39,6 +39,23 @@ export function handler<Args extends unknown[]>(
           { status: 400 }
         );
       }
+      const prismaCode =
+        typeof err === "object" && err !== null && "code" in err
+          ? String((err as { code?: unknown }).code)
+          : "";
+
+      if (prismaCode === "P2022") {
+        console.error("[DB_SCHEMA_DRIFT]", err);
+        return NextResponse.json(
+          {
+            error:
+              "ساختار دیتابیس با نسخه فعلی برنامه هماهنگ نیست. پس از تهیه نسخه پشتیبان، دستور «npm run db:push» یا «bun run db:push» را اجرا و سرور را مجدداً راه‌اندازی کنید.",
+            code: "DB_SCHEMA_DRIFT",
+          },
+          { status: 503 }
+        );
+      }
+
       console.error("[API_ERROR]", err);
       return NextResponse.json({ error: "خطای غیرمنتظره سرور. لطفاً دوباره تلاش کنید." }, { status: 500 });
     }

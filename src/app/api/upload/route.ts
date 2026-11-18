@@ -36,14 +36,22 @@ export const DELETE = handler(async (req: Request) => {
 
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
   if (!isAdmin) {
-    const referencing = await db.property.findFirst({
-      where: {
-        OR: [{ videoUrl: { contains: url } }, { videoPosterUrl: { contains: url } }],
-        NOT: { hostId: user.id },
-      },
-      select: { id: true },
-    });
-    if (referencing) throw forbidden("این فایل در آگهی دیگری در حال استفاده است");
+    const [referencingVideo, referencingImage] = await Promise.all([
+      db.property.findFirst({
+        where: {
+          OR: [{ videoUrl: { contains: url } }, { videoPosterUrl: { contains: url } }],
+          NOT: { hostId: user.id },
+        },
+        select: { id: true },
+      }),
+      db.propertyImage.findFirst({
+        where: { url, property: { is: { hostId: { not: user.id } } } },
+        select: { id: true },
+      }),
+    ]);
+    if (referencingVideo || referencingImage) {
+      throw forbidden("این فایل در آگهی دیگری در حال استفاده است");
+    }
   }
   const removed = await removeUpload(url);
   if (!removed) throw badRequest("حذف فایل ناموفق بود یا فایل یافت نشد");

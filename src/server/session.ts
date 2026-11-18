@@ -15,7 +15,16 @@ const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "villasento_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function secret(): string {
-  return process.env.AUTH_SECRET || "vilasa-dev-secret-do-not-use-in-prod";
+  const configured = process.env.AUTH_SECRET?.trim();
+
+  if (process.env.NODE_ENV === "production") {
+    if (!configured || configured.length < 32) {
+      throw new Error("AUTH_SECRET must be configured with at least 32 characters in production");
+    }
+    return configured;
+  }
+
+  return configured || "villasento-local-development-secret-only";
 }
 
 export type SessionPayload = { uid: string; role: string; iat: number; exp: number };

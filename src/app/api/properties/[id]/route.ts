@@ -36,6 +36,7 @@ const updateSchema = z.object({
   negotiable: z.boolean().optional(),
   paymentTerms: z.string().optional(),
   videoUrl: z.string().optional(),
+  videoPosterUrl: z.string().optional(),
   tourUrl: z.string().optional(),
   contactName: z.string().optional(),
   contactPhone: z.string().optional(),

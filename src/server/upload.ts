@@ -7,7 +7,6 @@ import { getSetting } from "./settings";
 
 const UPLOAD_ROOT = join(process.cwd(), "uploads");
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
-const MAX_BYTES_DEFAULT = 5 * 1024 * 1024;
 
 export type UploadResult = { url: string; width: number; height: number; size: number };
 

@@ -20,12 +20,23 @@ NODE_ENV=production
 ## ۲) مهاجرت دیتابیس
 
 ```bash
+# ابتدا DATABASE_URL را بررسی و از دیتابیس فعلی backup بگیرید.
+# سپس ساختار دیتابیس را بدون اجازه حذف داده‌ها با schema هماهنگ کنید:
+bun run db:push              # معادل: npm run db:push
 bun run db:generate          # ساخت Prisma Client
-npx prisma db push           # Development
-# یا در Production با Migration:
-# npx prisma migrate deploy
-bun run db:seed              # فقط بار اول / محیط دمو
+
+# فقط بار اول / محیط دمو:
+bun run db:seed
 ```
+
+**رفع خطای `P2022` مانند `The column main.User.themePrefs does not exist`:** این خطا یعنی دیتابیس قدیمی‌تر از `prisma/schema.prisma` است. پس از تأیید `DATABASE_URL` و تهیه backup، در ریشه پروژه اجرا کنید:
+
+```bash
+npm run db:push
+npm run db:generate
+```
+
+یا در محیط دارای Bun، `bun run db:push` و سپس `bun run db:generate`. این دستورها schema فعلی را با دیتابیس همگام می‌کنند؛ آن‌ها را روی همان فایل SQLiteای اجرا کنید که برنامه واقعاً استفاده می‌کند. از `--accept-data-loss` استفاده نکنید. پس از موفقیت، سرور Next.js را restart کنید.
 
 طرح اسکیما PostgreSQL-ready است؛ برای مهاجرت: `provider = "postgresql"` در `prisma/schema.prisma` + `DATABASE_URL` جدید + `migrate deploy`. ستون‌های قیمت از نوع Float (محدوده دقیق تا ۹۰۰۰ تریلیون تومان) و هیچ جدولی حذف‌شدنی نیست.
 
@@ -60,12 +71,12 @@ bun run start     # اجرای Production (پورت 3000)
 
 ## ۷) چک‌لیست امنیتی Production
 
-- [ ] `AUTH_SECRET` قوی تنظیم شده (openssl rand -hex 32)
+- [ ] `AUTH_SECRET` قوی (حداقل ۳۲ نویسه تصادفی) تنظیم شده (openssl rand -hex 32؛ بدون fallback در Production)
 - [ ] `NEXT_PUBLIC_SITE_URL` روی دامنه واقعی
 - [ ] HTTPS (کوکی نشست `secure` در production خودکار فعال است)
 - [ ] رمز حساب‌های مدیر تغییر کرده (اولین ورود با رمز دمو ممنوع)
 - [ ] `sms.demoMode=false` پس از اتصال درگاه پیامک واقعی
-- [ ] بکاپ دوره‌ای `db/` و `uploads/`
+- [ ] بکاپ دوره‌ای `db/` و `uploads/`؛ دیتابیس و فایل‌های واقعی در مخزن عمومی commit نمی‌شوند
 - [ ] محدودیت دسترسی فایل‌سیستم به دایرکتوری‌های `db/` و `uploads/`
 - [ ] اجرای `bun run lint` و `bunx tsc --noEmit` در CI
 

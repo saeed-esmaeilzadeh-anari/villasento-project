@@ -13,6 +13,7 @@ import { PropertyCard } from "@/components/site/PropertyCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -191,14 +192,24 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
           >
             <ImageGallery images={p.images} title={p.title} />
           </div>
-          {(p.videoUrl || p.tourUrl) && (
+          {p.videoUrl && (
+            <div className="space-y-2">
+              <video
+                src={p.videoUrl}
+                poster={(p as typeof p & { videoPosterUrl?: string | null }).videoPosterUrl || undefined}
+                controls
+                preload="metadata"
+                playsInline
+                className="w-full rounded-2xl bg-black aspect-video"
+                controlsList="nodownload"
+                aria-label={`ویدیوی ملک: ${p.title}`}
+              />
+              <p className="text-[11px] text-muted-foreground">ویدیوی معرفی ملک — پخش با کنترل‌های خود مرورگر</p>
+            </div>
+          )}
+          {p.tourUrl && (
             <div className="flex flex-wrap gap-2">
-              {p.videoUrl && (
-                <Button variant="outline" size="sm" asChild><a href={p.videoUrl} target="_blank" rel="noopener noreferrer">▶ مشاهده ویدئو ملک</a></Button>
-              )}
-              {p.tourUrl && (
-                <Button variant="outline" size="sm" asChild><a href={p.tourUrl} target="_blank" rel="noopener noreferrer">👁 تور مجازی ۳۶۰°</a></Button>
-              )}
+              <Button variant="outline" size="sm" asChild><a href={p.tourUrl} target="_blank" rel="noopener noreferrer">👁 تور مجازی ۳۶۰°</a></Button>
             </div>
           )}
 
@@ -430,8 +441,8 @@ function VisitDialog({ open, onOpenChange, property }: {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="v-date">تاریخ پیشنهادی (میلادی)</Label>
-              <Input id="v-date" type="date" dir="ltr" className="text-left" value={date} onChange={(e) => setDate(e.target.value)} min={new Date().toISOString().slice(0, 10)} />
+              <Label htmlFor="v-date">تاریخ پیشنهادی</Label>
+              <JalaliDatePicker id="v-date" value={date} onChange={setDate} min={new Date().toISOString().slice(0, 10)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="v-time">ساعت</Label>

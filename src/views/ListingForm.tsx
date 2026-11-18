@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, uploadImage, type Lookups, type PropertyDetailT } from "@/lib/api";
+import { api, uploadImage, uploadVideo, deleteUpload, type Lookups, type PropertyDetailT } from "@/lib/api";
 import { Link, navigate } from "@/lib/router";
 import { useAuth } from "@/lib/store";
 import { useSeo } from "@/lib/seo";
@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import {
   ChevronLeft, ChevronRight, Check, Save, Send, Loader2, ImagePlus,
   Star, Trash2, GripVertical, MapPin, CheckCircle2,
+  Film, UploadCloud, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,7 @@ type FormState = {
   floors: string; buildYear: string; documentStatus: string; amenities: string[]; amenitiesExtra: string;
   salePrice: string; rahnAmount: string; rentAmount: string; negotiable: boolean; paymentTerms: string;
   provinceId: string; cityId: string; areaId: string; address: string; lat: number | null; lng: number | null;
-  images: string[]; mainImage: number; videoUrl: string; tourUrl: string;
+  images: string[]; mainImage: number; videoUrl: string; videoPosterUrl: string; tourUrl: string;
   contactName: string; contactPhone: string; contactPreference: string;
 };
 
@@ -42,7 +43,7 @@ const initialForm: FormState = {
   buildYear: "", documentStatus: "MALIKI", amenities: [], amenitiesExtra: "",
   salePrice: "", rahnAmount: "", rentAmount: "", negotiable: false, paymentTerms: "",
   provinceId: "", cityId: "", areaId: "", address: "", lat: null, lng: null,
-  images: [], mainImage: 0, videoUrl: "", tourUrl: "",
+  images: [], mainImage: 0, videoUrl: "", videoPosterUrl: "", tourUrl: "",
   contactName: "", contactPhone: "", contactPreference: "BOTH",
 };
 
@@ -53,7 +54,11 @@ export function ListingForm({ editId }: { editId?: string }) {
   const [form, setForm] = useState<FormState>(initialForm);
   const [busy, setBusy] = useState(false);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
+  const [videoPct, setVideoPct] = useState<number | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
 
   useSeo({ title: editId ? "ویرایش آگهی | ویلاسنتو" : `ثبت آگهی ملک | ${BRAND}`, path: "/new-listing", noIndex: true });
@@ -89,7 +94,7 @@ export function ListingForm({ editId }: { editId?: string }) {
         negotiable: p.negotiable, paymentTerms: p.paymentTerms ?? "",
         provinceId: province?.id ?? "", cityId: city?.id ?? "", address: p.address ?? "",
         lat: p.lat, lng: p.lng, images: p.images, mainImage: 0,
-        videoUrl: p.videoUrl ?? "", tourUrl: p.tourUrl ?? "",
+        videoUrl: p.videoUrl ?? "", videoPosterUrl: (p as PropertyDetailT & { videoPosterUrl?: string | null }).videoPosterUrl ?? "", tourUrl: p.tourUrl ?? "",
         contactName: p.owner.name, contactPhone: "", contactPreference: p.contactPreference ?? "BOTH",
       }));
       setDraftLoaded(true);
@@ -153,6 +158,7 @@ export function ListingForm({ editId }: { editId?: string }) {
         negotiable: form.negotiable,
         paymentTerms: form.paymentTerms || undefined,
         videoUrl: form.videoUrl || undefined,
+        videoPosterUrl: form.videoPosterUrl || undefined,
         tourUrl: form.tourUrl || undefined,
         contactName: form.contactName || undefined,
         contactPhone: form.contactPhone || me?.phone,
@@ -203,6 +209,78 @@ export function ListingForm({ editId }: { editId?: string }) {
         setUploadPct(null);
       }
     }
+  };
+
+
+  // ── video: pick → local preview + poster capture → upload with progress ──
+  const videoMaxMB = (lookups as (Lookups & { uploadLimits?: { videoMaxMB: number } }) | undefined)?.uploadLimits?.videoMaxMB ?? 50;
+
+  const capturePoster = (file: File): Promise<string | null> =>
+    new Promise((resolve) => {
+      try {
+        const url = URL.createObjectURL(file);
+        const v = document.createElement("video");
+        v.preload = "metadata"; v.muted = true;
+        v.src = url;
+        const cleanup = () => URL.revokeObjectURL(url);
+        v.onloadeddata = () => { v.currentTime = Math.min(1, (v.duration || 2) / 3); };
+        v.onseeked = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+            canvas.getContext("2d")?.drawImage(v, 0, 0);
+            canvas.toBlob(async (blob) => {
+              cleanup();
+              if (!blob) return resolve(null);
+              try {
+                const res = await uploadImage(new File([blob], "poster.webp", { type: "image/webp" }), undefined, "posters");
+                resolve(res.url);
+              } catch { resolve(null); }
+            }, "image/webp", 0.8);
+          } catch { cleanup(); resolve(null); }
+        };
+        v.onerror = () => { cleanup(); resolve(null); };
+      } catch { resolve(null); }
+    });
+
+  const uploadVideoFile = async (file: File) => {
+    setVideoError(null); setVideoPct(1);
+    try {
+      const poster = await capturePoster(file);
+      if (poster) set("videoPosterUrl", poster);
+      const res = await uploadVideo(file, (pct) => setVideoPct(Math.max(1, pct)), "videos");
+      setForm((fr) => ({ ...fr, videoUrl: res.url }));
+      setVideoPct(null); setVideoFile(null);
+      toast.success("ویدیو با موفقیت بارگذاری شد");
+    } catch (e) {
+      setVideoPct(null);
+      setVideoError((e as Error).message || "آپلود ویدیو ناموفق بود");
+    }
+  };
+
+  const handleVideoFile = (files: FileList | null) => {
+    setVideoError(null);
+    const f = files?.[0];
+    if (!f) return;
+    if (!["video/mp4", "video/webm"].includes(f.type) && !f.name.match(/\.(mp4|webm)$/i)) {
+      toast.error("فرمت ویدیو باید MP4 یا WebM باشد");
+      return;
+    }
+    if (f.size > videoMaxMB * 1024 * 1024) {
+      toast.error(`حجم ویدیو باید کمتر از ${faNum(videoMaxMB)} مگابایت باشد`);
+      return;
+    }
+    setVideoFile(f);
+    void uploadVideoFile(f);
+  };
+
+  const removeVideo = async () => {
+    const url = form.videoUrl;
+    setForm((f) => ({ ...f, videoUrl: "", videoPosterUrl: "" }));
+    if (url && url.startsWith("/api/files/")) {
+      try { await deleteUpload(url); } catch { /* file may already be gone */ }
+    }
+    toast.success("ویدیو حذف شد");
   };
 
   if (!loading && !me) {
@@ -480,14 +558,80 @@ export function ListingForm({ editId }: { editId?: string }) {
               </div>
             )}
 
-            <div className="grid md:grid-cols-2 gap-4 pt-2">
-              <Field label="لینک ویدئو ملک (اختیاری)">
-                <Input dir="ltr" className="text-left" value={form.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://…" />
-              </Field>
-              <Field label="لینک تور مجازی ۳۶۰° (اختیاری)">
-                <Input dir="ltr" className="text-left" value={form.tourUrl} onChange={(e) => set("tourUrl", e.target.value)} placeholder="https://…" />
+            <div className="rounded-2xl border border-dashed p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <Film className="h-4 w-4 text-primary" /> ویدیوی ملک (اختیاری — از دستگاه: MP4 یا WebM، حداکثر {faNum(videoMaxMB)} مگابایت)
+              </div>
+
+              {form.videoUrl ? (
+                <div className="space-y-3">
+                  <video
+                    src={form.videoUrl}
+                    poster={form.videoPosterUrl || undefined}
+                    controls
+                    preload="metadata"
+                    className="w-full max-h-72 rounded-xl bg-black"
+                    aria-label="پیش‌نمایش ویدیوی ملک"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => (videoRef.current as HTMLInputElement | null)?.click()} disabled={!!videoPct}>
+                      <UploadCloud className="h-4 w-4" /> جایگزینی ویدیو
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="text-red-600 hover:bg-red-50" onClick={removeVideo}>
+                      <Trash2 className="h-4 w-4" /> حذف ویدیو
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full rounded-xl border bg-muted/40 py-6 hover:bg-muted/70 transition-colors"
+                  onClick={() => videoRef.current?.click()}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") videoRef.current?.click(); }}
+                  aria-label="بارگذاری ویدیو"
+                >
+                  <UploadCloud className="h-8 w-8 mx-auto text-primary/60" />
+                  <p className="text-sm font-bold mt-2">انتخاب ویدیو از دستگاه</p>
+                  <p className="text-xs text-muted-foreground mt-1">MP4 یا WebM · یک فایل · تصویر کاور خودکار از فریم ویدیو ساخته می‌شود</p>
+                </button>
+              )}
+
+              <input
+                ref={videoRef} type="file" accept="video/mp4,video/webm" className="hidden"
+                onChange={(e) => { handleVideoFile(e.target.files); e.target.value = ""; }}
+                aria-hidden="true"
+              />
+
+              {videoPct != null && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>در حال بارگذاری ویدیو… {videoFile ? `(${faNum(Math.round(videoFile.size / 1048576))} مگابایت)` : ""}</span>
+                    <span>{faNum(videoPct)}٪</span>
+                  </div>
+                  <Progress value={videoPct} />
+                </div>
+              )}
+
+              {videoError && (
+                <div className="flex items-center justify-between rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                  <span>{videoError}</span>
+                  {videoFile && (
+                    <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => uploadVideoFile(videoFile)}>
+                      <RotateCcw className="h-3 w-3" /> تلاش مجدد
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <Field label="یا لینک خارجی ویدیو (اختیاری)">
+                <Input dir="ltr" className="text-left" value={form.videoUrl && !form.videoUrl.startsWith("/api/files/") ? form.videoUrl : ""} onChange={(e) => { set("videoUrl", e.target.value); if (form.videoPosterUrl) set("videoPosterUrl", ""); }} placeholder="https://…" />
               </Field>
             </div>
+
+            <Field label="لینک تور مجازی ۳۶۰° (اختیاری)">
+              <Input dir="ltr" className="text-left" value={form.tourUrl} onChange={(e) => set("tourUrl", e.target.value)} placeholder="https://…" />
+            </Field>
           </div>
         )}
 

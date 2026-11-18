@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ action: string }> };
 /**
  * POST /api/auth/[action]
  * request-otp | verify | logout | profile |
- * password-login | set-password | change-password | reset-password
+ * password-login | register | set-password | change-password | reset-password
  */
 export const POST = handler(async (req: Request, ctx: Ctx) => {
   const { action } = await ctx.params;
@@ -48,6 +48,17 @@ export const POST = handler(async (req: Request, ctx: Ctx) => {
     const body = await parseBody(req, z.object({ phone: z.string(), password: z.string() }));
     await limitOrThrow(`plogin:${ip}:${body.phone}`, 10, 10 * 60 * 1000);
     return ok(await AuthService.loginWithPassword(body.phone, body.password));
+  }
+
+  if (action === "register") {
+    const body = await parseBody(req, z.object({
+      phone: z.string(),
+      password: z.string(),
+      passwordConfirm: z.string(),
+      fullName: z.string().optional(),
+    }));
+    await limitOrThrow(`register:${ip}`, 5, 60 * 60 * 1000);
+    return ok(await AuthService.register(body.phone, body.password, body.passwordConfirm, body.fullName));
   }
 
   if (action === "set-password") {

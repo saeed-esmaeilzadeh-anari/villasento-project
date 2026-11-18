@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Ban, Eye, UserRound } from "lucide-react";
+import { KeyRound, Search, Ban, Eye, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EmptyStateInline } from "./Listings";
@@ -46,6 +46,23 @@ export function UsersSection() {
     onSuccess: () => { toast.success("انجام شد"); qc.invalidateQueries({ queryKey: ["admin-users"] }); qc.invalidateQueries({ queryKey: ["admin-user"] }); },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const resetPw = (id: string, phone: string) => {
+    if (!window.confirm(`رمز عبور کاربر ${faNum(phone)} بازنشانی شود؟ یک رمز موقت تولید و باید یک‌بار نمایش داده شود.`)) return;
+    act.mutate(
+      { action: "set-password", id },
+      {
+        onSuccess: (res) => {
+          const temp = (res as { tempPassword?: string }).tempPassword ?? "";
+          window.prompt(
+            "رمز موقت ساخته شد — همین حالا کپی کنید (فقط همین یک‌بار نمایش داده می‌شود). کاربر در ورود بعدی ملزم به تغییر رمز است:",
+            temp
+          );
+          toast.success("رمز عبور بازنشانی شد");
+        },
+      }
+    );
+  };
 
   const { data: detail } = useQuery({
     queryKey: ["admin-user", detailId],
@@ -117,6 +134,9 @@ export function UsersSection() {
                   <td className="p-3">
                     <div className="flex gap-1.5">
                       <Button size="sm" variant="ghost" onClick={() => setDetailId(u.id)} aria-label="جزئیات"><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => resetPw(u.id, u.phone)} aria-label="بازنشانی رمز عبور" title="بازنشانی رمز عبور">
+                        <KeyRound className="h-3.5 w-3.5" /> رمز
+                      </Button>
                       {!["ADMIN", "SUPER_ADMIN"].includes(u.role) && (
                         <Button
                           size="sm" variant={u.isBlocked ? "secondary" : "outline"}

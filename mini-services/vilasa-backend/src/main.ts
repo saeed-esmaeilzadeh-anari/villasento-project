@@ -17,8 +17,17 @@ import { AllExceptionsFilter } from "./common/all-exceptions.filter";
  *  - Realtime: socket.io on the same port (namespace "/", rooms per user)
  */
 async function bootstrap() {
+  // CORS: default reflects any origin (same behavior as before). Set CORS_ORIGIN
+  // in .env to a comma-separated whitelist in production, e.g.:
+  //   CORS_ORIGIN=https://villasento.example,https://www.villasento.example
+  const allowedOrigins = (process.env.CORS_ORIGIN ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const corsOrigin: true | string[] = allowedOrigins.length > 0 ? allowedOrigins : true;
+
   const app = await NestFactory.create(AppModule, {
-    cors: { origin: true, credentials: true },
+    cors: { origin: corsOrigin, credentials: true },
     logger: ["log", "warn", "error"],
   });
 
@@ -40,7 +49,7 @@ async function bootstrap() {
         "احراز هویت OTP با کوکی نشست امضاشده (HMAC-SHA256) مشترک با فرانت‌اند Next.js.",
     )
     .setVersion("1.0.0")
-    .addCookieAuth("vilasa_session")
+    .addCookieAuth(process.env.SESSION_COOKIE_NAME || "villasento_session")
     .addTag("auth")
     .addTag("public")
     .addTag("properties")

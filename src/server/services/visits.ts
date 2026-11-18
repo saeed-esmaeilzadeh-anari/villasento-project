@@ -145,10 +145,13 @@ export async function updateVisitStatus(user: SafeUser, id: string, status: stri
 }
 
 // ───────── Admin management ─────────
-export async function adminVisits(user: SafeUser, status?: string) {
+export async function adminVisits(user: SafeUser, status?: string, from?: string, to?: string) {
   if (!isAdmin(user)) throw forbidden("این بخش فقط برای مدیران سامانه است");
+  const where: Record<string, unknown> = status && status !== "ALL" ? { status } : {};
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) where.createdAt = { ...(where.createdAt as object | undefined ?? {}), gte: new Date(from + "T00:00:00") };
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) where.createdAt = { ...(where.createdAt as object | undefined ?? {}), lte: new Date(to + "T23:59:59") };
   const list = await db.visitRequest.findMany({
-    where: status && status !== "ALL" ? { status } : {},
+    where,
     include: {
       property: { select: { id: true, title: true, code: true } },
       user: { select: { fullName: true, phone: true } },

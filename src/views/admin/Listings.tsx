@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { JalaliDateRange } from "@/components/site/JalaliDatePicker";
 import { Search, Star, Trash2, Eye, Send, Archive, Ban, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -33,13 +34,15 @@ export function ListingsSection() {
   const [status, setStatus] = useState("ALL");
   const [tt, setTt] = useState("ALL");
   const [q, setQ] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [rejectTarget, setRejectTarget] = useState<AdminListing | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [detail, setDetail] = useState<AdminListing | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-listings", status, tt, q],
-    queryFn: () => api.get<{ items: AdminListing[] }>(`/api/admin/properties?status=${status}&tt=${tt}&q=${encodeURIComponent(q)}`),
+    queryKey: ["admin-listings", status, tt, q, from, to],
+    queryFn: () => api.get<{ items: AdminListing[] }>(`/api/admin/properties?status=${status}&tt=${tt}&q=${encodeURIComponent(q)}&from=${from}&to=${to}`),
   });
 
   const invalidate = () => {
@@ -86,6 +89,7 @@ export function ListingsSection() {
             {Object.entries(TRANSACTION_TYPE_LABELS).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <JalaliDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} className="flex-1 min-w-52" />
         <span className="text-xs text-muted-foreground">{data ? `${faNum(data.items.length)} نتیجه` : ""}</span>
       </div>
 

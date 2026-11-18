@@ -2,6 +2,8 @@
 
 import { api, type Me } from "@/lib/api";
 import { useAuth, useCompare } from "@/lib/store";
+import { ThemeSettingsPanel } from "@/components/theme/ThemeSettingsPanel";
+import { Palette as PaletteIcon } from "lucide-react";
 import { Link, navigate } from "@/lib/router";
 import { faNum, ROLE_LABELS, BRAND } from "@/lib/fa";
 import { Button } from "@/components/ui/button";
@@ -36,6 +38,7 @@ export const DEFAULT_MENU: MenuItem[] = [
 export function Header() {
   const { me, loading, openAuth, logout } = useAuth();
   const compareCount = useCompare((s) => s.ids.length);
+  const [themeOpen, setThemeOpen] = useState(false);
   const { data: notif } = useQuery({
     queryKey: ["notifications", me?.id],
     queryFn: () => api.get<{ items: { id: string; title: string; body: string; readAt: string | null; createdAt: string; link?: string | null }[]; unread: number }>("/api/notifications"),
@@ -57,7 +60,7 @@ export function Header() {
             {/* Mobile menu */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden" aria-label="منو">
+                <Button variant="ghost" size="icon" className="lg:hidden" aria-label="منو">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
@@ -95,6 +98,13 @@ export function Header() {
                       </Link>
                     </>
                   )}
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm hover:bg-muted w-full text-right"
+                    onClick={() => { setMobileOpen(false); setThemeOpen(true); }}
+                  >
+                    <PaletteIcon className="h-4 w-4" /> تنظیمات ظاهری
+                  </button>
                   {!me && (
                     <Button className="mt-2" onClick={() => { setMobileOpen(false); openAuth(); }}>
                       ورود | ثبت‌نام
@@ -109,7 +119,7 @@ export function Header() {
               <span className="text-xl font-black text-primary hidden sm:block">{BRAND}</span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-1 mr-4">
+            <nav className="hidden lg:flex items-center gap-1 mr-4">
               {links.map((l) => (
                 <Link key={l.to} to={l.to} className="px-3 py-2 rounded-lg text-sm font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors">
                   {l.label}
@@ -124,6 +134,10 @@ export function Header() {
                 <PlusCircle className="h-4 w-4" />
                 ثبت آگهی رایگان
               </Link>
+            </Button>
+
+            <Button variant="ghost" size="icon" aria-label="تنظیمات ظاهری" onClick={() => setThemeOpen(true)}>
+              <PaletteIcon className="h-5 w-5" />
             </Button>
 
             {loading ? (
@@ -214,6 +228,7 @@ export function Header() {
         </div>
       </header>
       <AuthDialog />
+      <ThemeSettingsPanel open={themeOpen} onOpenChange={setThemeOpen} />
     </>
   );
 }

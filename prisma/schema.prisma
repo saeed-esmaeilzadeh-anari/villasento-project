@@ -23,7 +23,9 @@ model User {
   nationalId     String?
   avatarUrl      String?
   role           String    @default("CUSTOMER") // SUPER_ADMIN | ADMIN | AGENT | OWNER | CUSTOMER (legacy: HOST)
-  passwordHash   String? // scrypt$salt$hash — optional phone+password login
+  passwordHash   String? // bcrypt or scrypt — optional phone+password login
+  mustChangePassword Boolean @default(false) // forced password change on first login (bootstrap admin)
+  themePrefs     String? // JSON: per-user theme preferences (mode/palette/fontsize/density/radius)
   isHostVerified Boolean   @default(false)
   isBlocked      Boolean   @default(false)
   lastLoginAt    DateTime?
@@ -141,6 +143,7 @@ model Property {
 
   // ── Media & contact ──
   videoUrl       String?
+  videoPosterUrl String? // poster frame for the listing video
   tourUrl        String? // virtual tour
   contactName    String?
   contactPhone   String?

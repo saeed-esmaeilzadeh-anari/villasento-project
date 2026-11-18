@@ -1,5 +1,6 @@
 import { handler, ok } from "@/server/http";
 import { db } from "@/lib/db";
+import { getSetting } from "@/server/settings";
 import { PROPERTY_TYPES, TRANSACTION_TYPES, DOCUMENT_STATUS, LISTING_STATUS, CONTACT_PREFS } from "@/server/services/properties";
 
 /** GET /api/lookups — provinces/cities/areas, amenities, domain enums */
@@ -24,5 +25,9 @@ export const GET = handler(async () => {
     documentStatus: Object.entries(DOCUMENT_STATUS).map(([key, name]) => ({ key, name })),
     listingStatus: Object.entries(LISTING_STATUS).map(([key, name]) => ({ key, name })),
     contactPrefs: Object.entries(CONTACT_PREFS).map(([key, name]) => ({ key, name })),
+    uploadLimits: {
+      imageMaxMB: Number((await getSetting("upload.maxSizeMB")) ?? 5),
+      videoMaxMB: Number((await getSetting("upload.videoMaxSizeMB")) ?? 50),
+    },
   });
 });

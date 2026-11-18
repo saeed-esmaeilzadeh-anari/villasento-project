@@ -9,7 +9,9 @@ import { forbidden, unauthorized } from "./http";
  * without touching any service code (only this file).
  */
 
-const COOKIE_NAME = "villasento_session";
+// Cookie name is env-configurable; the NestJS backend MUST use the same
+// value (SESSION_COOKIE_NAME) for the shared-session SSO to work.
+const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "villasento_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function secret(): string {

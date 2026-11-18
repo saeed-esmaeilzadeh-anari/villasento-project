@@ -43,6 +43,36 @@ export const api = {
   del: <T,>(url: string) => request<T>("DELETE", url),
 };
 
+/** Upload any file (video) with progress callback (XMLHttpRequest for progress events) */
+export function uploadVideo(file: File, onProgress?: (pct: number) => void, folder = "videos"): Promise<{ url: string; size: number; kind: string }> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("folder", folder);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new ApiClientError(data?.error ?? "خطا در بارگذاری فایل", xhr.status));
+      } catch {
+        reject(new ApiClientError("پاسخ نامعتبر از سرور", xhr.status));
+      }
+    };
+    xhr.onerror = () => reject(new ApiClientError("خطای شبکه در بارگذاری", 0));
+    xhr.send(form);
+  });
+}
+
+/** Delete an uploaded media file (server checks ownership) */
+export function deleteUpload(url: string): Promise<{ ok: boolean }> {
+  return api.del(`/api/upload?url=${encodeURIComponent(url)}`);
+}
+
 /** Upload one image with progress callback (XMLHttpRequest for progress events) */
 export function uploadImage(file: File, onProgress?: (pct: number) => void, folder = "listings"): Promise<{ url: string; width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -75,6 +105,7 @@ export type Me = {
   isHostVerified: boolean; isBlocked: boolean;
   avatarUrl: string | null; nationalId: string | null;
   hasPassword: boolean;
+  mustChangePassword?: boolean;
 } | null;
 
 export type AmenityT = { id: string; key: string; name: string; icon: string };
@@ -109,7 +140,8 @@ export type PropertyDetailT = PropertyCardT & {
   floors: number;
   paymentTerms: string | null;
   amenitiesExtra: string[];
-  videoUrl: string | null; tourUrl: string | null;
+  videoUrl: string | null;
+  videoPosterUrl?: string | null; tourUrl: string | null;
   status: string; rejectionReason: string | null; expiresAt: string | null;
   allAmenities: AmenityT[];
   images: string[];
@@ -131,6 +163,7 @@ export type SearchResponseT = {
 };
 
 export type Lookups = {
+  uploadLimits?: { imageMaxMB: number; videoMaxMB: number };
   provinces: { id: string; name: string; cities: { id: string; name: string; areas?: { id: string; name: string }[] }[] }[];
   amenities: AmenityT[];
   types: { key: string; name: string }[];

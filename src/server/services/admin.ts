@@ -10,9 +10,12 @@ function adminGuard(user: Pick<SafeUser, "role">) {
 }
 
 // ───────── Listing moderation ─────────
-export async function adminProperties(user: SafeUser, opts: { status?: string; q?: string; tt?: string } = {}) {
+export async function adminProperties(user: SafeUser, opts: { status?: string; q?: string; tt?: string; from?: string; to?: string } = {}) {
   adminGuard(user);
   const where: Record<string, unknown> = {};
+  // Jalali date-range filter: from/to arrive as Gregorian ISO dates (YYYY-MM-DD), converted client-side
+  if (opts.from && /^\d{4}-\d{2}-\d{2}$/.test(opts.from)) where.createdAt = { ...(where.createdAt as object | undefined ?? {}), gte: new Date(opts.from + "T00:00:00") };
+  if (opts.to && /^\d{4}-\d{2}-\d{2}$/.test(opts.to)) where.createdAt = { ...(where.createdAt as object | undefined ?? {}), lte: new Date(opts.to + "T23:59:59") };
   if (opts.status && opts.status !== "ALL") where.status = opts.status;
   if (opts.tt && opts.tt !== "ALL") where.transactionType = opts.tt;
   if (opts.q) where.OR = [{ title: { contains: opts.q } }, { code: { contains: opts.q.toUpperCase() } }, { address: { contains: opts.q } }];

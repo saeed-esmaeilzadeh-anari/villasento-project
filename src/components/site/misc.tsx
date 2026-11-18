@@ -8,9 +8,9 @@ import {
   faNum,
 } from "@/lib/fa";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function PropertyStatusBadge({ status }: { status: string }) {
@@ -82,6 +82,8 @@ export function RowSkeleton() {
 export function ImageGallery({ images, title }: { images: string[]; title: string }) {
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
+  const [broken, setBroken] = useState<Record<number, boolean>>({});
+  const touchX = useRef<number | null>(null);
 
   if (!images?.length) {
     return <div className="aspect-[2/1] rounded-2xl bg-muted grid place-items-center text-muted-foreground">تصویری ثبت نشده</div>;
@@ -90,6 +92,21 @@ export function ImageGallery({ images, title }: { images: string[]; title: strin
   const next = () => setIdx((i) => (i + 1) % images.length);
   const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
 
+  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0]?.clientX ?? null; };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchX.current == null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? touchX.current) - touchX.current;
+    touchX.current = null;
+    if (Math.abs(dx) > 40) { if (dx < 0) next(); else prev(); } // swipe left→next, right→prev
+  };
+
+  const fallback = (
+    <div className="w-full h-full grid place-items-center bg-muted text-muted-foreground text-xs gap-1">
+      <ImageOff className="h-6 w-6 opacity-50" />
+      <span>تصویر در دسترس نیست</span>
+    </div>
+  );
+
   return (
     <>
       <div className="grid grid-cols-4 grid-rows-2 gap-2 h-64 md:h-96 rounded-2xl overflow-hidden">
@@ -97,11 +114,19 @@ export function ImageGallery({ images, title }: { images: string[]; title: strin
           <button
             key={i}
             onClick={() => { setIdx(i); setOpen(true); }}
-            className={cn("relative overflow-hidden group", i === 0 ? "col-span-2 row-span-2" : "hidden md:block")}
+            className={cn("relative overflow-hidden group bg-muted", i === 0 ? "col-span-2 row-span-2" : "hidden md:block")}
             aria-label={`تصویر ${faNum(i + 1)}`}
           >
-            { }
-            <img src={src} alt={`${title} — تصویر ${faNum(i + 1)}`} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            {broken[i] ? fallback : (
+              <img
+                src={src}
+                alt={`${title} — تصویر ${faNum(i + 1)}`}
+                loading={i === 0 ? "eager" : "lazy"}
+                decoding="async"
+                onError={() => setBroken((b) => ({ ...b, [i]: true }))}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            )}
             {i === 4 && images.length > 5 && (
               <span className="absolute inset-0 bg-black/55 text-white grid place-items-center text-sm font-bold">
                 + {faNum(images.length - 5)} تصویر دیگر
@@ -112,20 +137,29 @@ export function ImageGallery({ images, title }: { images: string[]; title: strin
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl p-2" dir="rtl">
+        <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] p-2" dir="rtl">
           <DialogTitle className="sr-only">گالری تصاویر {title}</DialogTitle>
-          <div className="relative">
-            { }
-            <img src={images[idx]} alt={`${title} — تصویر ${faNum(idx + 1)}`} className="w-full max-h-[75vh] object-contain rounded-lg" />
+          <div className="relative" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            {broken[idx] ? (
+              <div className="w-full aspect-video">{fallback}</div>
+            ) : (
+              <img
+                src={images[idx]}
+                alt={`${title} — تصویر ${faNum(idx + 1)}`}
+                onError={() => setBroken((b) => ({ ...b, [idx]: true }))}
+                className="w-full max-h-[70vh] object-contain rounded-lg bg-muted select-none touch-pan-y"
+                draggable={false}
+              />
+            )}
             <Button size="icon" variant="secondary" className="absolute top-2 left-2" onClick={() => setOpen(false)} aria-label="بستن">
               <X className="h-4 w-4" />
             </Button>
             {images.length > 1 && (
               <>
-                <Button size="icon" variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={prev} aria-label="قبلی">
+                <Button size="icon" variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={prev} aria-label="تصویر قبلی">
                   <ChevronRight className="h-5 w-5" />
                 </Button>
-                <Button size="icon" variant="secondary" className="absolute left-2 top-1/2 -translate-y-1/2" onClick={next} aria-label="بعدی">
+                <Button size="icon" variant="secondary" className="absolute left-2 top-1/2 -translate-y-1/2" onClick={next} aria-label="تصویر بعدی">
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
               </>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { JalaliDateRange } from "@/components/site/JalaliDatePicker";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Phone } from "lucide-react";
 import { toast } from "sonner";
@@ -37,11 +38,13 @@ export function RequestsSection() {
 function VisitsAdmin() {
   const qc = useQueryClient();
   const [status, setStatus] = useState("ALL");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [detail, setDetail] = useState<(VisitT & { events?: { type: string; toStatus: string | null; message: string | null; createdAt: string }[] }) | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-visits", status],
-    queryFn: () => api.get<{ items: (VisitT & { user?: { fullName: string | null; phone: string } | null; assignedTo?: { id: string; fullName: string | null } | null; events?: { type: string; toStatus: string | null; message: string | null; createdAt: string }[] })[] }>(`/api/admin/visits?status=${status}`),
+    queryKey: ["admin-visits", status, from, to],
+    queryFn: () => api.get<{ items: (VisitT & { user?: { fullName: string | null; phone: string } | null; assignedTo?: { id: string; fullName: string | null } | null; events?: { type: string; toStatus: string | null; message: string | null; createdAt: string }[] })[] }>(`/api/admin/visits?status=${status}&from=${from}&to=${to}`),
   });
   const { data: agents } = useQuery({
     queryKey: ["admin-agents-lite"],
@@ -57,6 +60,7 @@ function VisitsAdmin() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2 items-center rounded-2xl border bg-card p-3">
+        <JalaliDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} className="w-full" />
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger size="sm" className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>

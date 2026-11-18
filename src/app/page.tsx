@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRoute } from "@/lib/router";
-import { useAuth, useHistory } from "@/lib/store";
+import { useAuth, useHistory, useCompare } from "@/lib/store";
+import { ThemeProvider, themeUserChanged } from "@/components/theme/ThemeProvider";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 import { Header, DemoHint } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { HomeView } from "@/views/HomeView";
@@ -23,14 +25,31 @@ function AppShell() {
   const pushHistory = useHistory((s) => s.push);
 
   useEffect(() => {
+    // Controlled zustand persistence: both persisted stores use skipHydration,
+    // so localStorage values are merged ONLY after React hydration — the first
+    // client render always matches the server markup (no badge/count mismatch).
+    useCompare.persist.rehydrate();
+    useHistory.persist.rehydrate();
     fetchMe();
   }, [fetchMe]);
+
+  // restore per-user theme preferences from the database on login/logout
+  const meId = useAuth((s) => s.me?.id ?? null);
+  useEffect(() => {
+    themeUserChanged(meId);
+  }, [meId]);
+
+  // warn once when the (bootstrap) admin must change the initial password
+  const mustChange = useAuth((s) => s.me?.mustChangePassword ?? false);
+  useEffect(() => {
+    if (mustChange) toast.warning("برای امنیت حساب، لطفاً رمز عبور اولیه را تغییر دهید (پنل کاربری → تغییر رمز)");
+  }, [mustChange]);
 
   // auto-open auth when redirected with ?auth=1
   useEffect(() => {
     if (route.params.get("auth") === "1") openAuth();
      
-  }, []);
+  }, [route.params]);
 
   const path = route.path;
 
@@ -87,6 +106,7 @@ export default function Page() {
   );
   return (
     <QueryClientProvider client={client}>
+      <ThemeProvider />
       <AppShell />
       <HistorySync />
     </QueryClientProvider>

@@ -1,4 +1,9 @@
-@import "tailwindcss";
+/* Tailwind v4 automatic source detection is restricted to src/ ONLY.
+   source() resolves relative to the imported `tailwindcss` package folder
+   (node_modules/tailwindcss/) -> "../../src" = <project>/src.
+   Never scan the project root: db/*.db-shm & *.db-wal are OS-locked by
+   SQLite -> Turbopack panic "The process cannot access the file (os error 33)". */
+@import "tailwindcss" source("../../src");
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -75,6 +80,58 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+
+/* ════════════════════════════════════════════════════════════════
+   Theme system — palettes, font size, density, radius
+   --user-primary is set by [data-palette] presets or by the custom
+   color picker (inline --custom-primary). Dark mode derives a readable
+   variant via color-mix. The FOUC-prevention inline script in layout.tsx
+   sets these attributes BEFORE first paint from localStorage.
+   ════════════════════════════════════════════════════════════════ */
+:root {
+  --user-primary: #0d5c46; /* VillaSento brand green (default palette) */
+}
+[data-palette="brand"]  { --user-primary: #0d5c46; }
+[data-palette="blue"]   { --user-primary: #2563eb; }
+[data-palette="green"]  { --user-primary: #16a34a; }
+[data-palette="purple"] { --user-primary: #7c3aed; }
+[data-palette="teal"]   { --user-primary: #0d9488; }
+[data-palette="orange"] { --user-primary: #ea580c; }
+[data-palette="red"]    { --user-primary: #dc2626; }
+[data-palette="slate"]  { --user-primary: #475569; }
+[data-palette="custom"] { --user-primary: var(--custom-primary, #0d5c46); }
+
+/* apply palette to primary/ring/sidebar/charts (light mode) */
+:root {
+  --primary: var(--user-primary);
+  --primary-foreground: var(--custom-primary-fg, oklch(0.985 0.01 120));
+  --ring: color-mix(in oklab, var(--user-primary) 75%, white);
+  --sidebar-primary: var(--user-primary);
+  --chart-1: var(--user-primary);
+}
+
+.dark {
+  --primary: color-mix(in oklab, var(--user-primary) 72%, white);
+  --primary-foreground: var(--custom-primary-fg-dark, oklch(0.205 0.02 150));
+  --ring: color-mix(in oklab, var(--user-primary) 55%, white);
+  --sidebar-primary: color-mix(in oklab, var(--user-primary) 72%, white);
+  --chart-1: color-mix(in oklab, var(--user-primary) 68%, white);
+}
+
+/* UI font size scale */
+html[data-fontsize="s"] { font-size: 14px; }
+html[data-fontsize="m"] { font-size: 16px; }
+html[data-fontsize="l"] { font-size: 17.5px; }
+
+/* UI density — Tailwind v4 spacing base (compact shrinks all spacing utilities ~12%) */
+html[data-density="compact"] { --spacing: 0.21875rem; }
+html[data-density="comfortable"] { --spacing: 0.25rem; }
+
+/* corner radius scale */
+html[data-radius="s"] { --radius: 0.5rem; }
+html[data-radius="m"] { --radius: 0.75rem; }
+html[data-radius="l"] { --radius: 1.1rem; }
+
 :root {
   --radius: 0.75rem;
   --background: oklch(0.985 0.004 95);
@@ -83,8 +140,8 @@
   --card-foreground: oklch(0.2 0.01 150);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.2 0.01 150);
-  --primary: oklch(0.46 0.095 165);
-  --primary-foreground: oklch(0.985 0.01 120);
+  --primary: var(--user-primary);
+  --primary-foreground: var(--custom-primary-fg, oklch(0.985 0.01 120));
   --secondary: oklch(0.955 0.012 120);
   --secondary-foreground: oklch(0.32 0.05 160);
   --muted: oklch(0.955 0.006 100);
@@ -94,15 +151,15 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.008 110);
   --input: oklch(0.9 0.008 110);
-  --ring: oklch(0.55 0.09 165);
-  --chart-1: oklch(0.646 0.222 41.116);
+  --ring: color-mix(in oklab, var(--user-primary) 75%, white);
+  --chart-1: var(--user-primary);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: var(--user-primary);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
@@ -117,8 +174,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: color-mix(in oklab, var(--user-primary) 72%, white);
+  --primary-foreground: var(--custom-primary-fg-dark, oklch(0.205 0.02 150));
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -128,15 +185,15 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
+  --ring: color-mix(in oklab, var(--user-primary) 55%, white);
+  --chart-1: color-mix(in oklab, var(--user-primary) 68%, white);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: color-mix(in oklab, var(--user-primary) 72%, white);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);

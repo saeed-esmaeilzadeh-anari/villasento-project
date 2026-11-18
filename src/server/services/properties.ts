@@ -217,7 +217,7 @@ export type PropertyRow = {
   bedrooms: number; bathrooms: number; floors: number; buildYear: number | null;
   documentStatus: string; salePrice: number | null; rahnAmount: number | null;
   rentAmount: number | null; negotiable: boolean; paymentTerms: string | null;
-  amenitiesExtra: string; videoUrl: string | null; tourUrl: string | null;
+  amenitiesExtra: string; videoUrl: string | null; videoPosterUrl: string | null; tourUrl: string | null;
   contactName: string | null; contactPhone: string | null; contactPreference: string;
   description: string; status: string; rejectionReason: string | null;
   publishedAt: Date | null; expiresAt: Date | null; isFeatured: boolean;
@@ -326,6 +326,7 @@ export async function propertyDetail(id: string, viewer?: SafeUser | null) {
     paymentTerms: prop.paymentTerms,
     amenitiesExtra: prop.amenitiesExtra ? prop.amenitiesExtra.split(",").map((s) => s.trim()).filter(Boolean) : [],
     videoUrl: prop.videoUrl,
+    videoPosterUrl: prop.videoPosterUrl,
     tourUrl: prop.tourUrl,
     status: prop.status,
     rejectionReason: prop.rejectionReason,
@@ -395,6 +396,7 @@ export type ListingInput = {
   negotiable?: boolean;
   paymentTerms?: string;
   videoUrl?: string;
+  videoPosterUrl?: string;
   tourUrl?: string;
   contactName?: string;
   contactPhone?: string;
@@ -460,6 +462,7 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
       negotiable: !!input.negotiable,
       paymentTerms: input.paymentTerms ?? null,
       videoUrl: input.videoUrl ?? null,
+      videoPosterUrl: input.videoPosterUrl ?? null,
       tourUrl: input.tourUrl ?? null,
       contactName: input.contactName ?? user.fullName ?? null,
       contactPhone: input.contactPhone ?? user.phone,
@@ -514,7 +517,7 @@ export async function updateProperty(user: SafeUser, id: string, input: ListingI
   if (forSubmit) validateListing(input, true);
 
   const data: Record<string, unknown> = {};
-  const strFields = ["title", "description", "address", "type", "transactionType", "documentStatus", "amenitiesExtra", "paymentTerms", "videoUrl", "tourUrl", "contactName", "contactPhone", "contactPreference"] as const;
+  const strFields = ["title", "description", "address", "type", "transactionType", "documentStatus", "amenitiesExtra", "paymentTerms", "videoUrl", "videoPosterUrl", "tourUrl", "contactName", "contactPhone", "contactPreference"] as const;
   for (const f of strFields) if (input[f] != null) (data as Record<string, unknown>)[f] = input[f];
   const numFields = ["bedrooms", "bathrooms", "floors", "landArea", "buildArea", "buildYear"] as const;
   for (const f of numFields) if (input[f] != null) (data as Record<string, unknown>)[f] = input[f];

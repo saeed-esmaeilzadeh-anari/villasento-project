@@ -8,12 +8,14 @@
 DATABASE_URL="file:/var/www/villasento/db/custom.db"      # SQLite
 # یا پس از تغییر provider در prisma/schema.prisma به postgresql:
 # DATABASE_URL="postgresql://user:pass@host:5432/villasento"
-AUTH_SECRET="<openssl rand -hex 32>"                       # الزامی در Production
+AUTH_SECRET="<openssl rand -hex 32>"                       # الزامی در Production (در بک‌اند هم عیناً همین مقدار)
+SESSION_COOKIE_NAME="villasento_session"                   # در بک‌اند هم عیناً همین مقدار (SSO)
+CORS_ORIGIN="https://YOUR-DOMAIN.com"                      # فقط بک‌اند NestJS — محدود به دامنه واقعی
 NEXT_PUBLIC_SITE_URL="https://YOUR-DOMAIN.com"             # برای sitemap/canonical/OG
 NODE_ENV=production
 ```
 
-> هرگز مقادیر واقعی را در مخزن commit نکنید؛ `.env.example` را مرجع قرار دهید.
+> هرگز مقادیر واقعی را در مخزن commit نکنید؛ `.env.example` را مرجع قرار دهید. مرجع کامل همه متغیرها: `docs/env-guide.md`.
 
 ## ۲) مهاجرت دیتابیس
 

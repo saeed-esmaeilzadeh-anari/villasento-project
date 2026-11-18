@@ -4,7 +4,7 @@ import { smsProvider } from "../sms";
 import { audit } from "../audit";
 import { getSetting } from "../settings";
 import { createSession, destroySession, getCurrentUser, requireUser } from "../session";
-import { hashPassword, verifyPassword, passwordPolicyError } from "./password";
+import { hashPassword, verifyPassword, needsRehash, passwordPolicyError } from "./password";
 
 const OTP_TTL_MS = 3 * 60 * 1000;
 
@@ -125,11 +125,12 @@ export async function updateProfile(data: { fullName?: string; email?: string; n
 
 // ───────────────── Password auth ─────────────────
 
-function safeUser(u: { id: string; phone: string; fullName: string | null; email: string | null; role: string; isHostVerified: boolean; isBlocked: boolean; avatarUrl: string | null; nationalId: string | null; hasPassword?: boolean }) {
+function safeUser(u: { id: string; phone: string; fullName: string | null; email: string | null; role: string; isHostVerified: boolean; isBlocked: boolean; avatarUrl: string | null; nationalId: string | null; hasPassword?: boolean; mustChangePassword?: boolean }) {
   return {
     id: u.id, phone: u.phone, fullName: u.fullName, email: u.email,
     role: u.role, isHostVerified: u.isHostVerified, isBlocked: u.isBlocked,
     avatarUrl: u.avatarUrl, nationalId: u.nationalId, hasPassword: u.hasPassword ?? false,
+    mustChangePassword: u.mustChangePassword ?? false,
   };
 }
 
@@ -143,8 +144,38 @@ export async function loginWithPassword(rawPhone: string, password: string) {
   }
   if (user.isBlocked) throw Object.assign(new Error("حساب کاربری شما مسدود شده است"), { status: 403 });
   await createSession(user.id, user.role);
-  await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
+  // Transparently migrate legacy scrypt hashes to bcrypt on successful login
+  const patch: { lastLoginAt: Date; passwordHash?: string } = { lastLoginAt: new Date() };
+  if (needsRehash(user.passwordHash)) patch.passwordHash = hashPassword(password);
+  await db.user.update({ where: { id: user.id }, data: patch }).catch(() => {});
   await audit({ actorId: user.id, actorPhone: phone, action: "AUTH_LOGIN_PASSWORD", entity: "User", entityId: user.id });
+  return { ok: true, mustChangePassword: user.mustChangePassword, user: safeUser({ ...user, hasPassword: true }) };
+}
+
+/**
+ * Public self-registration with phone + password (no SMS required).
+ * The phone is the login identity but is NOT marked verified until a
+ * verification channel (SMS panel) is connected later.
+ */
+export async function register(rawPhone: string, password: string, passwordConfirm: string, fullName?: string) {
+  const phone = normalizePhone(rawPhone);
+  if (password !== passwordConfirm) throw badRequest("رمز عبور و تکرار آن یکسان نیستند");
+  const err = passwordPolicyError(password);
+  if (err) throw badRequest(err);
+  const existing = await db.user.findUnique({ where: { phone } });
+  if (existing) throw badRequest("این شماره موبایل قبلاً ثبت شده است؛ وارد شوید یا رمز را بازیابی کنید");
+  const name = String(fullName ?? "").trim();
+  if (name.length > 80) throw badRequest("نام و نام خانوادگی طولانی است");
+  const user = await db.user.create({
+    data: {
+      phone,
+      fullName: name || null,
+      passwordHash: hashPassword(password),
+      role: "CUSTOMER",
+    },
+  });
+  await createSession(user.id, user.role);
+  await audit({ actorId: user.id, actorPhone: phone, action: "AUTH_REGISTER", entity: "User", entityId: user.id });
   return { ok: true, user: safeUser({ ...user, hasPassword: true }) };
 }
 
@@ -168,7 +199,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
   const full = await db.user.findUnique({ where: { id: user.id } });
   if (!full?.passwordHash) throw badRequest("ابتدا رمز عبور تنظیم کنید");
   if (!verifyPassword(currentPassword, full.passwordHash)) throw badRequest("رمز عبور فعلی اشتباه است");
-  await db.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword(newPassword) } });
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword(newPassword), mustChangePassword: false } });
   await audit({ actorId: user.id, action: "PASSWORD_CHANGE", entity: "User", entityId: user.id });
   return { ok: true };
 }

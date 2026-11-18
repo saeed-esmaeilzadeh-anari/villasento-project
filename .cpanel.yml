@@ -1,0 +1,10 @@
+---
+deployment:
+  tasks:
+    - export APP=/home/vilasen1/villasento-project
+    - cd $APP
+    - npm ci
+    - npm run build
+    - cp -f .next/standalone/server.js $APP/server.js
+    - cp -rf .next/standalone/.next $APP/.next-standalone
+    - cp -rf .next/standalone/public $APP/public-standalone

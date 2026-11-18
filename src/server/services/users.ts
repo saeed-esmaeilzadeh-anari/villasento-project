@@ -1,8 +1,9 @@
+import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { badRequest, forbidden, notFound } from "../http";
 import { audit } from "../audit";
 import { isAdmin, PROPERTY_TYPES, TRANSACTION_TYPES, LISTING_STATUS, type SafeUser } from "./properties";
-import { hashPassword } from "./password";
+import { hashPassword, passwordPolicyError } from "./password";
 
 export const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: "مدیر ارشد",
@@ -100,6 +101,30 @@ export async function setUserRole(actor: SafeUser, id: string, role: string) {
 }
 
 // ───────── Agents management ─────────
+/**
+ * Admin password reset (no SMS panel available): generate a one-time temp
+ * password, store it bcrypt-hashed, force the user to change it on next login.
+ * The temp password is returned ONCE in this response — never stored in plain.
+ */
+export async function setUserPassword(actor: SafeUser, id: string, tempPassword?: string) {
+  if (!isAdmin(actor)) throw forbidden("دسترسی مدیریتی لازم است");
+  const target = await db.user.findUnique({ where: { id } });
+  if (!target) throw notFound("کاربر یافت نشد");
+  // only SUPER_ADMIN may reset another admin / super admin
+  if (target.role === "ADMIN" || target.role === "SUPER_ADMIN") {
+    if (actor.role !== "SUPER_ADMIN") throw forbidden("تغییر رمز مدیران فقط توسط SUPER_ADMIN امکان‌پذیر است");
+  }
+  const pw = tempPassword && String(tempPassword).length >= 6 ? String(tempPassword) : "VS-" + randomBytes(5).toString("hex");
+  const policy = passwordPolicyError(pw);
+  if (policy) throw badRequest(policy);
+  await db.user.update({
+    where: { id },
+    data: { passwordHash: hashPassword(pw), mustChangePassword: true },
+  });
+  await audit({ actorId: actor.id, action: "ADMIN_USER_PASSWORD_RESET", entity: "User", entityId: id });
+  return { ok: true, tempPassword: pw };
+}
+
 export async function listAgents(actor: SafeUser) {
   if (!isAdmin(actor)) throw forbidden();
   const agents = await db.user.findMany({

@@ -28,8 +28,8 @@ export const GET = handler(async (req: Request, ctx: Ctx) => {
     case "recents": return ok(await Stats.recents(user));
     case "users": return ok(await Users.listUsers(user, sp.get("q") ?? undefined, sp.get("role") ?? undefined, Number(sp.get("page") ?? 1) || 1));
     case "user": return ok(await Users.userDetail(user, sp.get("id") ?? ""));
-    case "properties": return ok({ items: await Admin.adminProperties(user, { status: sp.get("status") ?? "ALL", q: sp.get("q") ?? undefined, tt: sp.get("tt") ?? undefined }) });
-    case "visits": return ok({ items: await Visits.adminVisits(user, sp.get("status") ?? "ALL") });
+    case "properties": return ok({ items: await Admin.adminProperties(user, { status: sp.get("status") ?? "ALL", q: sp.get("q") ?? undefined, tt: sp.get("tt") ?? undefined, from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined }) });
+    case "visits": return ok({ items: await Visits.adminVisits(user, sp.get("status") ?? "ALL", sp.get("from") ?? undefined, sp.get("to") ?? undefined) });
     case "messages": return ok({ items: await Contact.adminMessages(user, sp.get("status") ?? "ALL") });
     case "complaints": return ok({ items: await Admin.adminComplaints(user, sp.get("type") ?? "ALL") });
     case "agents": return ok({ items: await Users.listAgents(user) });
@@ -63,6 +63,7 @@ const actionSchema = z.object({
   agentId: z.string().nullable().optional(),
   data: z.record(z.string(), z.unknown()).optional(),
   reply: z.string().optional(),
+  password: z.string().optional(), // admin password reset (set-password)
 });
 
 /** POST /api/admin/[section] — action dispatch */
@@ -89,6 +90,7 @@ export const POST = handler(async (req: Request, ctx: Ctx) => {
     case "users": {
       if (body.action === "toggle-block") return ok(await Users.toggleUserBlock(user, id));
       if (body.action === "set-role") return ok(await Users.setUserRole(user, id, body.role!));
+      if (body.action === "set-password") return ok(await Users.setUserPassword(user, id, body.password));
       break;
     }
     case "agents": {

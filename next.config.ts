@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
 
   experimental: {
-    cpus: 2,
+    cpus: 8,
   },
 
   turbopack: {

@@ -32,6 +32,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Prepare CI SQLite database
+        run: |
+          mkdir -p prisma/db
+          npx prisma db push --skip-generate
       - name: Run TypeScript validation
         run: npm run typecheck
       - name: Build frontend and API

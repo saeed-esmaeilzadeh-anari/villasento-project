@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { api, type Lookups, type SearchResponseT, type PropertyCardT } from "@/lib/api";
+import { api, type Lookups, type SearchResponseT, type PropertyCardT, type RegionsTree, type RegionNodeT } from "@/lib/api";
 import { PropertyCard } from "@/components/site/PropertyCard";
-import { MapView, type MapPin } from "@/components/site/MapView";
+import { MapView, SANTOO_FALLBACK_BBOX, type MapPin } from "@/components/site/MapView";
+import { RegionCombobox, type RegionOption } from "@/components/site/RegionCombobox";
 import { useSeo } from "@/lib/seo";
 import { faNum, TRANSACTION_TYPE_LABELS, PROPERTY_TYPE_LABELS, DOCUMENT_STATUS_LABELS, shortMoney } from "@/lib/fa";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ const PAGE_SIZE = 12;
 
 type Filters = {
   tt: string[]; types: string[]; provinceId: string; cityId: string; areaId: string;
+  regions: string[]; // Region scopes (Latin slugs) — real DB regions incl. descendants
   minPrice: number | null; maxPrice: number | null;
   minLand: number | null; maxLand: number | null;
   minBuild: number | null; maxBuild: number | null;
@@ -32,7 +34,7 @@ type Filters = {
 };
 
 const EMPTY: Filters = {
-  tt: [], types: [], provinceId: "", cityId: "", areaId: "",
+  tt: [], types: [], provinceId: "", cityId: "", areaId: "", regions: [],
   minPrice: null, maxPrice: null, minLand: null, maxLand: null,
   minBuild: null, maxBuild: null, bedrooms: null, amenities: [], doc: "",
   negotiable: false, featured: false, sort: "NEWEST", q: "", page: 1,
@@ -47,6 +49,7 @@ function parseUrlToFilters(sp: URLSearchParams): Filters {
   if (sp.get("provinceId")) f.provinceId = sp.get("provinceId")!;
   if (sp.get("cityId")) f.cityId = sp.get("cityId")!;
   if (sp.get("areaId")) f.areaId = sp.get("areaId")!;
+  if (sp.get("regions")) f.regions = sp.get("regions")!.split(",").filter(Boolean);
   if (sp.get("q")) f.q = sp.get("q")!;
   if (sp.get("doc")) f.doc = sp.get("doc")!;
   if (sp.get("sort")) f.sort = sp.get("sort")!;
@@ -71,6 +74,7 @@ function filtersToQuery(f: Filters, bbox?: string): string {
   if (f.provinceId) sp.set("provinceId", f.provinceId);
   if (f.cityId) sp.set("cityId", f.cityId);
   if (f.areaId) sp.set("areaId", f.areaId);
+  if (f.regions.length) sp.set("regions", f.regions.join(","));
   if (f.q) sp.set("q", f.q);
   if (f.doc) sp.set("doc", f.doc);
   if (f.sort && f.sort !== "NEWEST") sp.set("sort", f.sort);
@@ -100,6 +104,7 @@ export function SearchView() {
     if (d.provinceId) f.provinceId = d.provinceId;
     if (d.cityId) f.cityId = d.cityId;
     if (d.areaId) f.areaId = d.areaId;
+    if (d.regionSlug) f.regions = [d.regionSlug];
     if (d.typeId) f.types = [d.typeId];
     if (d.q) f.q = d.q;
     return f;
@@ -129,6 +134,35 @@ export function SearchView() {
     staleTime: 10 * 60 * 1000,
   });
 
+  // real region tree (filter + map focus)
+  const { data: regionsData } = useQuery({
+    queryKey: ["regions-tree"],
+    queryFn: () => api.get<RegionsTree>("/api/regions"),
+    staleTime: 10 * 60 * 1000,
+  });
+  const flatRegions = useMemo(() => {
+    const flat: RegionNodeT[] = [];
+    const walk = (nodes: RegionNodeT[]) => nodes.forEach((n) => { flat.push(n); walk(n.children); });
+    walk(regionsData?.tree ?? []);
+    return flat;
+  }, [regionsData]);
+  const selectedRegionOptions: RegionOption[] = filters.regions
+    .map((slug) => flatRegions.find((r) => r.nameEn === slug || r.id === slug))
+    .filter(Boolean)
+    .map((r) => ({
+      id: r!.id, name: r!.name, nameEn: r!.nameEn, typeLabel: r!.typeLabel, path: r!.path,
+      lat: r!.lat, lng: r!.lng, geoStatus: r!.geoStatus,
+    }));
+  // primary map focus = first selected verified region (stable primitive deps)
+  const focusRegion = selectedRegionOptions.find((r) => r.lat != null && r.lng != null);
+  const focusLat: number | null = focusRegion?.lat ?? null;
+  const focusLng: number | null = focusRegion?.lng ?? null;
+  // memoized fly-to target — MapView re-flies only when lat/lng actually change
+  const mapFocusTarget = useMemo(
+    () => (focusLat != null && focusLng != null ? { lat: focusLat, lng: focusLng, zoom: 13 } : null),
+    [focusLat, focusLng]
+  );
+
   const queryString = useMemo(() => filtersToQuery(filters, bboxActive ? bbox : undefined), [filters, bbox, bboxActive]);
 
   const { data, isLoading, isFetching } = useQuery({
@@ -148,15 +182,29 @@ export function SearchView() {
 
   const province = lookups?.provinces.find((p) => p.id === filters.provinceId);
   const city = province?.cities.find((c) => c.id === filters.cityId);
-  const pins: MapPin[] = (data?.items ?? [])
-    .filter((p) => p.lat != null && p.lng != null)
-    .map((p) => ({ id: p.id, lat: p.lat!, lng: p.lng!, title: p.title, image: p.image, price: priceLabel(p) }));
+  // map pins: ALL matching results with real coordinates (stable identity per data change —
+  // a fresh array per render would re-trigger the map effect on every unrelated re-render)
+  const pinDetails = new Map((data?.items ?? []).filter((p) => p.lat != null).map((p) => [p.id, p]));
+  const pins: MapPin[] = useMemo(
+    () =>
+      (data?.pins ?? [])
+        .filter((p) => p.lat != null && p.lng != null)
+        .map((p) => {
+          const d = pinDetails.get(p.id);
+          return {
+            id: p.id, lat: p.lat!, lng: p.lng!,
+            title: d?.title, image: d?.image, price: d ? priceLabel(d) : undefined, ptype: d?.type,
+          };
+        }),
+    [data]
+  );
 
   const activeCount = useMemo(() => {
     let n = 0;
     if (filters.tt.length) n++;
     if (filters.types.length) n++;
     if (filters.provinceId || filters.cityId || filters.areaId) n++;
+    if (filters.regions.length) n++;
     if (filters.minPrice != null || filters.maxPrice != null) n++;
     if (filters.minLand != null || filters.maxLand != null) n++;
     if (filters.minBuild != null || filters.maxBuild != null) n++;
@@ -200,7 +248,7 @@ export function SearchView() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-80 overflow-y-auto p-4">
-              <FilterPanel filters={filters} patch={patch} reset={() => setFilters({ ...EMPTY })} lookups={lookups} />
+              <FilterPanel filters={filters} patch={patch} reset={() => setFilters({ ...EMPTY })} lookups={lookups} selectedRegionOptions={selectedRegionOptions} />
             </SheetContent>
           </Sheet>
           <div className="flex rounded-lg border overflow-hidden">
@@ -218,7 +266,7 @@ export function SearchView() {
         {/* sidebar filters (desktop) */}
         <aside className="hidden lg:block w-72 shrink-0">
           <div className="sticky top-20 rounded-2xl border bg-card p-4 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin">
-            <FilterPanel filters={filters} patch={patch} reset={() => setFilters({ ...EMPTY })} lookups={lookups} />
+            <FilterPanel filters={filters} patch={patch} reset={() => setFilters({ ...EMPTY })} lookups={lookups} selectedRegionOptions={selectedRegionOptions} />
           </div>
         </aside>
 
@@ -226,15 +274,51 @@ export function SearchView() {
         <div className="flex-1 min-w-0">
           {view === "map" ? (
             <div className="space-y-3">
+              {/* map-scoped quick filters (synced with the main search filters) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {Object.entries(TRANSACTION_TYPE_LABELS).map(([k, label]) => (
+                  <button
+                    key={k}
+                    onClick={() => patch({ tt: filters.tt.includes(k) ? filters.tt.filter((x) => x !== k) : [...filters.tt, k] })}
+                    className={cn("rounded-full border px-3 py-1 text-xs font-bold transition-colors", filters.tt.includes(k) ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:border-primary/40")}
+                    aria-pressed={filters.tt.includes(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <span className="w-px h-5 bg-border mx-1" aria-hidden />
+                {Object.entries(PROPERTY_TYPE_LABELS).map(([k, label]) => (
+                  <button
+                    key={k}
+                    onClick={() => patch({ types: filters.types.includes(k) ? filters.types.filter((x) => x !== k) : [...filters.types, k] })}
+                    className={cn("rounded-full border px-3 py-1 text-xs font-bold transition-colors", filters.types.includes(k) ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:border-primary/40")}
+                    aria-pressed={filters.types.includes(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <MapView
                 pins={pins}
                 height={520}
                 zoom={8}
                 showSearchArea
-                onBoundsChange={(b) => setPendingBbox(b)}
+                onBoundsChange={(b) =>
+                  setPendingBbox((prev) =>
+                    prev &&
+                    prev.minLat === b.minLat && prev.maxLat === b.maxLat &&
+                    prev.minLng === b.minLng && prev.maxLng === b.maxLng
+                      ? prev
+                      : b
+                  )
+                }
+                initialBounds={regionsData?.bbox ?? SANTOO_FALLBACK_BBOX}
+                enableRegionSearch
+                focus={mapFocusTarget}
               />
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
+                  {pins.length > 0 && `${faNum(pins.length)} آگهی با موقعیت روی نقشه · `}
                   {pendingBbox ? "محدوده جدید آماده اعمال است" : "نقشه را جابه‌جا کنید و «جستجو در این محدوده» را بزنید"}
                 </p>
                 <div className="flex gap-2">
@@ -275,6 +359,7 @@ export function SearchView() {
                   {filters.tt.map((t) => <Chip key={t} label={TRANSACTION_TYPE_LABELS[t]} onX={() => patch({ tt: filters.tt.filter((x) => x !== t) })} />)}
                   {filters.types.map((t) => <Chip key={t} label={PROPERTY_TYPE_LABELS[t] ?? t} onX={() => patch({ types: filters.types.filter((x) => x !== t) })} />)}
                   {filters.q && <Chip label={`«${filters.q}»`} onX={() => patch({ q: "" })} />}
+                  {selectedRegionOptions.map((r) => <Chip key={r.id} label={`منطقه: ${r.name}`} onX={() => patch({ regions: filters.regions.filter((x) => x !== r.nameEn && x !== r.id) })} />)}
                   {filters.doc && <Chip label={DOCUMENT_STATUS_LABELS[filters.doc] ?? filters.doc} onX={() => patch({ doc: "" })} />}
                   {filters.bedrooms != null && <Chip label={`${faNum(filters.bedrooms)}+ خواب`} onX={() => patch({ bedrooms: null })} />}
                   {(filters.minPrice != null || filters.maxPrice != null) && (
@@ -341,11 +426,12 @@ function Chip({ label, onX }: { label: string; onX: () => void }) {
   );
 }
 
-function FilterPanel({ filters, patch, reset, lookups }: {
+function FilterPanel({ filters, patch, reset, lookups, selectedRegionOptions }: {
   filters: Filters;
   patch: (p: Partial<Filters>) => void;
   reset: () => void;
   lookups?: Lookups;
+  selectedRegionOptions: RegionOption[];
 }) {
   const province = lookups?.provinces.find((p) => p.id === filters.provinceId);
   const city = province?.cities.find((c) => c.id === filters.cityId);
@@ -402,7 +488,32 @@ function FilterPanel({ filters, patch, reset, lookups }: {
         </div>
       </div>
 
-      {/* location */}
+      {/* location — Region system (جاده سنتو و روستاها) first, legacy city/area second */}
+      <div className="space-y-1.5">
+        <Label>منطقه (جاده سنتو، رضویه، روستاها…)</Label>
+        <RegionCombobox
+          value={null}
+          onChange={(r) => {
+            if (!r) return;
+            const key = r.nameEn;
+            if (!filters.regions.includes(key)) patch({ regions: [...filters.regions, key] });
+          }}
+          placeholder="جستجوی منطقه… (مثلاً سنتو، قلعه سیاه)"
+          triggerSize="sm"
+        />
+        {selectedRegionOptions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedRegionOptions.map((r) => (
+              <span key={r.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-[11px] px-2 py-1 font-bold">
+                {r.name}
+                <button onClick={() => patch({ regions: filters.regions.filter((x) => x !== r.nameEn && x !== r.id) })} aria-label={`حذف منطقه ${r.name}`}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="space-y-1.5">
         <Label>استان</Label>
         <Select value={filters.provinceId || "all"} onValueChange={(v) => patch({ provinceId: v === "all" ? "" : v, cityId: "", areaId: "" })}>

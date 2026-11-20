@@ -4,18 +4,19 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type Lookups } from "@/lib/api";
 import { useSearch } from "@/lib/store";
 import { navigate } from "@/lib/router";
+import { RegionCombobox } from "@/components/site/RegionCombobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { faNum, TRANSACTION_TYPE_LABELS, BRAND } from "@/lib/fa";
+import { TRANSACTION_TYPE_LABELS, BRAND } from "@/lib/fa";
 import { Search, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TTS = ["SALE", "RAHN", "RAHN_RENT", "RENT"] as const;
 
-/** Advanced property search box (hero): transaction type + province/city/area + keyword */
+/** Advanced property search box (hero): transaction type + region/province/city + keyword */
 export function SearchBox({ compact = false }: { compact?: boolean }) {
-  const { tt, typeId, provinceId, cityId, areaId, q, set, reset } = useSearch();
+  const { tt, typeId, provinceId, cityId, q, regionSlug, regionName, set, reset } = useSearch();
   const { data: lookups } = useQuery({
     queryKey: ["lookups"],
     queryFn: () => api.get<Lookups>("/api/lookups"),
@@ -23,15 +24,14 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
   });
 
   const province = lookups?.provinces.find((p) => p.id === provinceId);
-  const city = province?.cities.find((c) => c.id === cityId);
 
   const go = () => {
     const sp = new URLSearchParams();
     if (tt) sp.set("tt", tt);
     if (typeId) sp.set("types", typeId);
-    if (cityId) sp.set("cityId", cityId);
+    if (regionSlug) sp.set("regions", regionSlug);
+    else if (cityId) sp.set("cityId", cityId);
     else if (provinceId) sp.set("provinceId", provinceId);
-    if (areaId) sp.set("areaId", areaId);
     if (q) sp.set("q", q);
     navigate("/search" + (sp.toString() ? `?${sp.toString()}` : ""));
   };
@@ -58,10 +58,20 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
 
       <div className={cn("grid gap-2", compact ? "grid-cols-2 md:grid-cols-5" : "md:grid-cols-5")}>
         <div className="space-y-1.5">
-          <label className="text-[11px] text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> استان</label>
+          <label className="text-[11px] text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> منطقه / روستا</label>
+          <RegionCombobox
+            value={regionSlug ? { id: regionSlug, name: regionName, nameEn: regionSlug, typeLabel: "", path: "", lat: null, lng: null, geoStatus: "VERIFIED" } : null}
+            onChange={(r) => set({ regionSlug: r?.nameEn ?? "", regionName: r?.name ?? "" })}
+            placeholder="جاده سنتو، رضویه، چهارفصل…"
+            triggerSize="sm"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] text-muted-foreground">استان</label>
           <Select
             value={provinceId || "all"}
-            onValueChange={(v) => set({ provinceId: v === "all" ? "" : v, cityId: "", areaId: "", provinceName: lookups?.provinces.find((p) => p.id === v)?.name ?? "" })}
+            onValueChange={(v) => set({ provinceId: v === "all" ? "" : v, cityId: "", provinceName: lookups?.provinces.find((p) => p.id === v)?.name ?? "" })}
           >
             <SelectTrigger size="sm" aria-label="انتخاب استان"><SelectValue placeholder="همه استان‌ها" /></SelectTrigger>
             <SelectContent>
@@ -73,22 +83,11 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
 
         <div className="space-y-1.5">
           <label className="text-[11px] text-muted-foreground">شهر</label>
-          <Select value={cityId || "all"} onValueChange={(v) => set({ cityId: v === "all" ? "" : v, areaId: "", cityName: province?.cities.find((c) => c.id === v)?.name ?? "" })} disabled={!provinceId}>
+          <Select value={cityId || "all"} onValueChange={(v) => set({ cityId: v === "all" ? "" : v, cityName: province?.cities.find((c) => c.id === v)?.name ?? "" })} disabled={!provinceId}>
             <SelectTrigger size="sm" aria-label="انتخاب شهر"><SelectValue placeholder={provinceId ? "همه شهرها" : "ابتدا استان"} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">همه شهرها</SelectItem>
               {province?.cities.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[11px] text-muted-foreground">منطقه</label>
-          <Select value={areaId || "all"} onValueChange={(v) => set({ areaId: v === "all" ? "" : v })} disabled={!cityId}>
-            <SelectTrigger size="sm" aria-label="انتخاب منطقه"><SelectValue placeholder={cityId ? "همه مناطق" : "ابتدا شهر"} /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">همه مناطق</SelectItem>
-              {city?.areas?.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -121,10 +120,9 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
       </div>
       {!compact && (
         <p className="text-[11px] text-muted-foreground mt-2.5">
-          جستجو در {faNum(lookups?.provinces.length ?? 0)} استان · آگهی‌های تأییدشده {BRAND}
+          جستجوی تخصصی محدوده جاده سنتو، رضویه، ناظریه و چهارفصل · آگهی‌های تأییدشده {BRAND}
         </p>
       )}
     </div>
   );
 }
-

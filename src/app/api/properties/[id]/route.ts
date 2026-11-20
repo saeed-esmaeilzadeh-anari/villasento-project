@@ -19,6 +19,7 @@ const updateSchema = z.object({
   description: z.string().optional(),
   cityId: z.string().optional(),
   areaId: z.string().optional(),
+  regionId: z.string().optional(),
   address: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),

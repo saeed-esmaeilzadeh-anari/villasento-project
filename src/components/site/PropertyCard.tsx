@@ -79,10 +79,10 @@ export function PropertyCard({ p, className }: { p: PropertyCardT; className?: s
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         <SmartImage
           src={p.image}
-          alt={`${p.title} — ${p.province}، ${p.city}`}
+          alt={`${p.title} — ${p.locationLabel || p.city || ""}`}
           eager={false}
           className="transition-transform duration-500 group-hover:scale-105"
-          fallbackLabel={`${p.typeLabel} — ${p.city}`}
+          fallbackLabel={`${p.typeLabel} — ${p.locationLabel || p.city || "ملک"}`}
           fallbackIcon={<TypeIcon className="h-10 w-10 opacity-40" />}
         />
 
@@ -139,7 +139,7 @@ export function PropertyCard({ p, className }: { p: PropertyCardT; className?: s
         <h3 className="font-bold text-sm leading-6 line-clamp-2 group-hover:text-primary transition-colors">{p.title}</h3>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{p.province}، {p.city}{p.area ? `، ${p.area}` : ""}</span>
+          <span className="truncate">{p.region?.name ?? p.locationLabel ?? `${p.province ?? ""}${p.province ? "، " : ""}${p.city ?? ""}`}</span>
         </div>
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-auto">

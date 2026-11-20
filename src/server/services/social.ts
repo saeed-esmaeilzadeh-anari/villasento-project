@@ -50,6 +50,7 @@ export async function listFavorites(user: SafeUser) {
       property: {
         include: {
           city: { include: { province: true } },
+          region: { select: { id: true, name: true, nameEn: true, type: true, geoStatus: true } },
           images: { orderBy: { sort: "asc" }, take: 1 },
           amenities: { include: { amenity: true } },
           host: { select: { fullName: true, isHostVerified: true } },
@@ -69,9 +70,14 @@ export async function listFavorites(user: SafeUser) {
       typeLabel: f.property.type,
       transactionType: f.property.transactionType,
       ttLabel: f.property.transactionType,
-      city: f.property.city.name,
-      province: f.property.city.province.name,
+      city: f.property.city?.name ?? null,
+      province: f.property.city?.province?.name ?? null,
       area: null,
+      region: f.property.region
+        ? { id: f.property.region.id, name: f.property.region.name, nameEn: f.property.region.nameEn, type: f.property.region.type, geoStatus: f.property.region.geoStatus }
+        : null,
+      regionSlug: f.property.region?.nameEn ?? null,
+      locationLabel: f.property.region?.name ?? f.property.city?.name ?? "",
       landArea: f.property.landArea,
       buildArea: f.property.buildArea,
       bedrooms: f.property.bedrooms,

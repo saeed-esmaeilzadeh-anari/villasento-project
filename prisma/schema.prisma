@@ -68,6 +68,7 @@ model City {
   areas      Area[]
   province   Province   @relation(fields: [provinceId], references: [id])
   properties Property[]
+  Region     Region[]
 
   @@unique([name, provinceId])
   @@index([provinceId])
@@ -80,6 +81,7 @@ model Area {
   sort       Int        @default(0)
   city       City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
   properties Property[]
+  Region     Region[]
 
   @@unique([cityId, name])
   @@index([cityId])
@@ -96,14 +98,16 @@ model Amenity {
 model Property {
   id                String            @id @default(cuid())
   code              String            @unique
+  slug              String?           @unique
   hostId            String
   agentId           String?
   title             String
   type              String            @default("VILLA")
   transactionType   String            @default("RENT")
   description       String            @default("")
-  cityId            String
+  cityId            String?
   areaId            String?
+  regionId          String?
   address           String            @default("")
   lat               Float?
   lng               Float?
@@ -121,6 +125,7 @@ model Property {
   negotiable        Boolean           @default(false)
   paymentTerms      String?
   videoUrl          String?
+  videoPosterUrl    String?
   tourUrl           String?
   contactName       String?
   contactPhone      String?
@@ -148,16 +153,15 @@ model Property {
   viewCount         Int               @default(0)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
-  videoPosterUrl    String?
-  slug              String?           @unique
   bookings          Booking[]
   calendarDays      CalendarDay[]
   complaints        Complaint[]
   contactMessages   ContactMessage[]
   conversations     Conversation[]    @relation("conversationProperty")
   favorites         Favorite[]
+  Region            Region?           @relation(fields: [regionId], references: [id])
   area              Area?             @relation(fields: [areaId], references: [id])
-  city              City              @relation(fields: [cityId], references: [id])
+  city              City?             @relation(fields: [cityId], references: [id])
   agent             User?             @relation("propertyAgent", fields: [agentId], references: [id])
   host              User              @relation(fields: [hostId], references: [id])
   amenities         PropertyAmenity[]
@@ -170,6 +174,7 @@ model Property {
   @@index([hostId])
   @@index([transactionType, status])
   @@index([isFeatured, status])
+  @@index([regionId, status])
 }
 
 model PropertyImage {
@@ -588,4 +593,37 @@ model Faq {
   answer   String
   sort     Int     @default(0)
   isActive Boolean @default(true)
+}
+
+model Region {
+  id                                     String     @id
+  name                                   String
+  nameEn                                 String     @unique
+  altNames                               String     @default("")
+  type                                   String     @default("AREA")
+  parentId                               String?
+  provinceId                             String?
+  lat                                    Float?
+  lng                                    Float?
+  geoStatus                              String     @default("UNVERIFIED")
+  isActive                               Boolean    @default(true)
+  isFeatured                             Boolean    @default(false)
+  sort                                   Int        @default(0)
+  description                            String     @default("")
+  legacyCityId                           String?
+  legacyAreaId                           String?
+  createdAt                              DateTime   @default(now())
+  updatedAt                              DateTime
+  Property                               Property[]
+  Area                                   Area?      @relation(fields: [legacyAreaId], references: [id])
+  City                                   City?      @relation(fields: [legacyCityId], references: [id])
+  Region_Region_provinceIdToRegion       Region?    @relation("Region_provinceIdToRegion", fields: [provinceId], references: [id], onDelete: Restrict)
+  other_Region_Region_provinceIdToRegion Region[]   @relation("Region_provinceIdToRegion")
+  Region_Region_parentIdToRegion         Region?    @relation("Region_parentIdToRegion", fields: [parentId], references: [id], onDelete: Restrict)
+  other_Region_Region_parentIdToRegion   Region[]   @relation("Region_parentIdToRegion")
+
+  @@index([isFeatured, isActive])
+  @@index([type, isActive])
+  @@index([provinceId])
+  @@index([parentId])
 }

@@ -2,6 +2,7 @@ import { handler, ok } from "@/server/http";
 import { db } from "@/lib/db";
 import * as Content from "@/server/services/content";
 import { searchProperties } from "@/server/services/properties";
+import { featuredRegions, regionTreePublic } from "@/server/services/regions";
 import { getAllSettings, getSetting } from "@/server/settings";
 
 /**
@@ -9,7 +10,7 @@ import { getAllSettings, getSetting } from "@/server/settings";
  * latest, featured, most-viewed, category counts, banners, articles, faqs, stats, settings
  */
 export const GET = handler(async () => {
-  const [latest, featured, mostViewed, banners, articles, faqs, settings, byType, byTT, cities, demoRaw] = await Promise.all([
+  const [latest, featured, mostViewed, banners, articles, faqs, settings, byType, byTT, cities, demoRaw, mainRegions, regionsTree] = await Promise.all([
     searchProperties({ sort: "NEWEST", pageSize: 8 }),
     searchProperties({ featuredOnly: true, sort: "NEWEST", pageSize: 6 }),
     searchProperties({ sort: "MOST_VIEWED", pageSize: 6 }),
@@ -21,6 +22,8 @@ export const GET = handler(async () => {
     db.$queryRaw<{ transactionType: string; cnt: number }[]>`SELECT transactionType as transactionType, COUNT(*) as cnt FROM Property WHERE status = 'PUBLISHED' GROUP BY transactionType`.catch(() => []),
     db.$queryRaw<{ name: string; cnt: number }[]>`SELECT c.name as name, COUNT(*) as cnt FROM Property p JOIN City c ON c.id = p.cityId WHERE p.status = 'PUBLISHED' GROUP BY c.name ORDER BY cnt DESC LIMIT 12`.catch(() => []),
     getSetting("site.demoMode"),
+    featuredRegions().catch(() => []),
+    regionTreePublic().catch(() => ({ tree: [], bbox: null, total: 0 })),
   ]);
 
   // DEMO_MODE: env flag wins; otherwise on in non-production runtime by default
@@ -45,6 +48,11 @@ export const GET = handler(async () => {
     byType: byType.map((r) => ({ type: r.type, count: Number(r.cnt) })),
     byTransactionType: byTT.map((r) => ({ tt: r.transactionType, count: Number(r.cnt) })),
     cities: cities.map((r) => ({ name: r.name, count: Number(r.cnt) })),
+    mainRegions: mainRegions.map((r: { id: string; name: string; nameEn: string; typeLabel: string; totalCount: number; lat: number | null; lng: number | null; geoStatus: string; count: number }) => ({
+      id: r.id, name: r.name, slug: r.nameEn, typeLabel: r.typeLabel,
+      count: r.totalCount, lat: r.lat, lng: r.lng, geoStatus: r.geoStatus,
+    })),
+    regionBbox: regionsTree.bbox,
     demoMode,
     stats,
     social,

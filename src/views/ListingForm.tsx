@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, uploadImage, uploadVideo, deleteUpload, type Lookups, type PropertyDetailT } from "@/lib/api";
+import { api, uploadImage, uploadVideo, deleteUpload, type Lookups, type PropertyDetailT, type RegionsTree, type RegionNodeT } from "@/lib/api";
 import { Link, navigate } from "@/lib/router";
 import { useAuth } from "@/lib/store";
 import { useSeo } from "@/lib/seo";
 import { faNum, currentJalaliYear, BRAND, TRANSACTION_TYPE_LABELS, PROPERTY_TYPE_LABELS, DOCUMENT_STATUS_LABELS, CONTACT_PREF_LABELS, priceLine, shortMoney } from "@/lib/fa";
 import { MapView } from "@/components/site/MapView";
+import { RegionCombobox, type RegionOption } from "@/components/site/RegionCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +37,9 @@ type FormState = {
   landArea: string; buildArea: string; bedrooms: string; bathrooms: string;
   floors: string; buildYear: string; documentStatus: string; amenities: string[]; amenitiesExtra: string;
   salePrice: string; rahnAmount: string; rentAmount: string; negotiable: boolean; paymentTerms: string;
-  provinceId: string; cityId: string; areaId: string; address: string; lat: number | null; lng: number | null;
+  provinceId: string; countyId: string; cityId: string; areaId: string;
+  regionId: string; regionName: string; regionSlug: string; regionLat: number | null; regionLng: number | null;
+  address: string; lat: number | null; lng: number | null;
   images: string[]; mainImage: number; videoUrl: string; videoPosterUrl: string; tourUrl: string;
   contactName: string; contactPhone: string; contactPreference: string;
 };
@@ -46,7 +49,9 @@ const initialForm: FormState = {
   landArea: "", buildArea: "", bedrooms: "2", bathrooms: "1", floors: "1",
   buildYear: "", documentStatus: "MALIKI", amenities: [], amenitiesExtra: "",
   salePrice: "", rahnAmount: "", rentAmount: "", negotiable: false, paymentTerms: "",
-  provinceId: "", cityId: "", areaId: "", address: "", lat: null, lng: null,
+  provinceId: "", countyId: "", cityId: "", areaId: "",
+  regionId: "", regionName: "", regionSlug: "", regionLat: null, regionLng: null,
+  address: "", lat: null, lng: null,
   images: [], mainImage: 0, videoUrl: "", videoPosterUrl: "", tourUrl: "",
   contactName: "", contactPhone: "", contactPreference: "BOTH",
 };
@@ -74,6 +79,62 @@ export function ListingForm({ editId }: { editId?: string }) {
     staleTime: 10 * 60 * 1000,
   });
 
+  // real region tree from the database (hierarchical location picker)
+  const { data: regionsData } = useQuery({
+    queryKey: ["regions-tree"],
+    queryFn: () => api.get<RegionsTree>("/api/regions"),
+    staleTime: 10 * 60 * 1000,
+  });
+  const regionProvinces = (regionsData?.tree ?? []).filter((r) => r.type === "PROVINCE");
+  const regionProvince = regionProvinces.find((p) => p.id === form.provinceId) ?? regionProvinces[0];
+  const regionCounties = (regionProvince?.children ?? []).filter((r) => r.type === "COUNTY");
+  const regionCounty = regionCounties.find((c) => c.id === form.countyId) ?? regionCounties[0];
+
+  // ── region picker helpers (flat index over the real tree) ──
+  const flatRegions = useMemo(() => {
+    const flat: RegionNodeT[] = [];
+    const walk = (nodes: RegionNodeT[]) => nodes.forEach((n) => { flat.push(n); walk(n.children); });
+    walk(regionsData?.tree ?? []);
+    return flat;
+  }, [regionsData]);
+
+  const nodeToOption = (r: RegionNodeT): RegionOption => ({
+    id: r.id, name: r.name, nameEn: r.nameEn, typeLabel: r.typeLabel, path: r.path,
+    lat: r.lat, lng: r.lng, geoStatus: r.geoStatus, legacyCityId: r.legacyCityId,
+  });
+
+  const regionNode = flatRegions.find((r) => r.id === form.regionId) ?? null;
+  const regionSel: RegionOption | null = regionNode
+    ? nodeToOption(regionNode)
+    : form.regionId
+      ? { id: form.regionId, name: form.regionName, nameEn: form.regionSlug, typeLabel: "", path: "", lat: form.regionLat, lng: form.regionLng, geoStatus: "VERIFIED" }
+      : null;
+  const regionSubs = regionNode?.children ?? [];
+
+  const pickRegion = (r: RegionOption | null) => {
+    if (!r) {
+      setForm((f) => ({ ...f, regionId: "", regionName: "", regionSlug: "", regionLat: null, regionLng: null, areaId: "" }));
+      return;
+    }
+    const node = flatRegions.find((x) => x.id === r.id);
+    if (node) {
+      const provinceNode = node.provinceId ? flatRegions.find((x) => x.id === node.provinceId) : null;
+      const parentNode = node.parentId ? flatRegions.find((x) => x.id === node.parentId) : null;
+      const countyNode = node.type === "COUNTY" ? node : (parentNode && parentNode.type === "COUNTY" ? parentNode : null);
+      setForm((f) => ({
+        ...f,
+        regionId: r.id, regionName: r.name, regionSlug: r.nameEn, regionLat: r.lat, regionLng: r.lng,
+        provinceId: provinceNode?.id ?? f.provinceId,
+        countyId: countyNode?.id ?? f.countyId,
+        // legacy city link keeps the old city filters matching this listing
+        cityId: r.legacyCityId ?? f.cityId,
+        areaId: "",
+      }));
+    } else {
+      setForm((f) => ({ ...f, regionId: r.id, regionName: r.name, regionSlug: r.nameEn, regionLat: r.lat, regionLng: r.lng, cityId: r.legacyCityId ?? f.cityId, areaId: "" }));
+    }
+  };
+
   // load existing listing for edit
   useQuery({
     queryKey: ["property-edit", editId],
@@ -97,7 +158,10 @@ export function ListingForm({ editId }: { editId?: string }) {
         amenities: p.allAmenities.map((a) => a.key), amenitiesExtra: p.amenitiesExtra.join("، "),
         salePrice: p.salePrice?.toString() ?? "", rahnAmount: p.rahnAmount?.toString() ?? "", rentAmount: p.rentAmount?.toString() ?? "",
         negotiable: p.negotiable, paymentTerms: p.paymentTerms ?? "",
-        provinceId: province?.id ?? "", cityId: city?.id ?? "", address: p.address ?? "",
+        provinceId: province?.id ?? "", cityId: city?.id ?? "",
+        regionId: p.region?.id ?? "", regionName: p.region?.name ?? "", regionSlug: p.region?.nameEn ?? "",
+        regionLat: p.region?.lat ?? null, regionLng: p.region?.lng ?? null,
+        address: p.address ?? "",
         lat: p.lat, lng: p.lng, images: p.images, mainImage: 0,
         videoUrl: p.videoUrl ?? "", videoPosterUrl: (p as PropertyDetailT & { videoPosterUrl?: string | null }).videoPosterUrl ?? "", tourUrl: p.tourUrl ?? "",
         contactName: p.owner.name, contactPhone: "", contactPreference: p.contactPreference ?? "BOTH",
@@ -129,7 +193,7 @@ export function ListingForm({ editId }: { editId?: string }) {
         if (tt === "RAHN_RENT") return !!form.rahnAmount && !!form.rentAmount;
         if (tt === "RENT") return !!form.rentAmount;
         return true;
-      case 3: return !!form.cityId;
+      case 3: return !!form.regionId || !!form.cityId;
       case 4: return form.images.length > 0;
       case 5: return !!form.contactPhone || !!me?.phone;
       default: return true;
@@ -144,6 +208,7 @@ export function ListingForm({ editId }: { editId?: string }) {
         type: form.type,
         transactionType: form.transactionType,
         description: form.description.trim(),
+        regionId: form.regionId || undefined,
         cityId: form.cityId || undefined,
         areaId: form.areaId || undefined,
         address: form.address,
@@ -452,49 +517,93 @@ export function ListingForm({ editId }: { editId?: string }) {
           </div>
         )}
 
-        {/* STEP 3 — location */}
+        {/* STEP 3 — location (hierarchical region system, real DB data) */}
         {step === 3 && (
           <div className="space-y-4">
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 gap-4">
               <Field label="استان" required>
-                <Select value={form.provinceId || "all"} onValueChange={(v) => { set("provinceId", v === "all" ? "" : v); set("cityId", ""); set("areaId", ""); }}>
+                <Select
+                  value={regionProvince?.id || "all"}
+                  onValueChange={(v) => setForm((f) => ({ ...f, provinceId: v, countyId: "", cityId: "", regionId: "", regionName: "", regionSlug: "", regionLat: null, regionLng: null }))}
+                >
                   <SelectTrigger><SelectValue placeholder="انتخاب استان" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all" disabled>انتخاب استان</SelectItem>
-                    {lookups?.provinces.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    {regionProvinces.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="شهر" required>
-                <Select value={form.cityId || "all"} onValueChange={(v) => { set("cityId", v === "all" ? "" : v); set("areaId", ""); }} disabled={!form.provinceId}>
-                  <SelectTrigger><SelectValue placeholder="ابتدا استان" /></SelectTrigger>
+              <Field label="شهرستان" required>
+                <Select
+                  value={regionCounty?.id || "all"}
+                  onValueChange={(v) => setForm((f) => ({ ...f, countyId: v, regionId: "", regionName: "", regionSlug: "", regionLat: null, regionLng: null }))}
+                  disabled={!regionProvince}
+                >
+                  <SelectTrigger><SelectValue placeholder={regionProvince ? "انتخاب شهرستان" : "ابتدا استان"} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all" disabled>انتخاب شهر</SelectItem>
-                    {province?.cities.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="منطقه / محله">
-                <Select value={form.areaId || "all"} onValueChange={(v) => set("areaId", v === "all" ? "" : v)} disabled={!form.cityId}>
-                  <SelectTrigger><SelectValue placeholder={form.cityId ? "همه مناطق" : "ابتدا شهر"} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">بدون منطقه</SelectItem>
-                    {city?.areas?.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                    {regionCounties.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Field>
             </div>
+
+            <Field label="منطقه / محدوده" required hint="نام را تایپ کنید — نام‌های جایگزین هم جستجو می‌شود (مثلاً «قلعه سیاه» برای رضویه یا «سنتو» برای جاده سنتو)">
+              <RegionCombobox
+                value={regionSel}
+                onChange={pickRegion}
+                placeholder="مثلاً رضویه، ناظریه، چهارفصل، جاده سنتو…"
+              />
+              {regionSel && (
+                <p className="text-[11px] text-muted-foreground mt-1.5">محدوده انتخابی: {regionSel.path || regionSel.name}</p>
+              )}
+            </Field>
+
+            {regionSubs.length > 0 && (
+              <Field label="روستا / زیرمجموعه" hint={`زیرمجموعه‌های «${regionSel?.name}» — انتخاب یکی به‌عنوان محدوده دقیق‌تر`}>
+                <Select
+                  value={form.regionId || "self"}
+                  onValueChange={(v) => {
+                    if (v === "self") return;
+                    const child = regionSubs.find((r) => r.id === v);
+                    if (child) pickRegion(nodeToOption(child));
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-56">
+                    <SelectItem value="self">همه {regionSel?.name}</SelectItem>
+                    {regionSubs.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                        {r.geoStatus === "UNVERIFIED" && <span className="text-[9px] text-amber-700 bg-amber-100 rounded px-1 mr-1">نیازمند بررسی</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+
             <Field label="آدرس دقیق">
               <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="نشانی کامل ملک" />
             </Field>
             <div>
-              <Label className="text-sm font-bold mb-2 block flex items-center gap-1.5"><MapPin className="h-4 w-4 text-primary" /> انتخاب موقعیت روی نقشه</Label>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <Label className="text-sm font-bold flex items-center gap-1.5"><MapPin className="h-4 w-4 text-primary" /> انتخاب موقعیت روی نقشه</Label>
+                {regionSel && regionSel.lat != null && regionSel.lng != null && (
+                  <Button
+                    type="button" size="sm" variant="outline" className="h-7 text-[11px]"
+                    onClick={() => { set("lat", regionSel.lat); set("lng", regionSel.lng); toast.info("موقعیت تقریبی منطقه اعمال شد؛ برای دقت بیشتر نشانگر را روی نقشه جابه‌جا کنید"); }}
+                  >
+                    استفاده از موقعیت تقریبی «{regionSel.name}»
+                  </Button>
+                )}
+              </div>
               <MapView
                 picker
                 picked={form.lat != null && form.lng != null ? { lat: form.lat, lng: form.lng } : null}
                 onPick={(pos) => setForm((f) => ({ ...f, lat: pos.lat, lng: pos.lng }))}
                 height={340}
                 center={form.lat && form.lng ? [form.lat, form.lng] : undefined}
+                focus={form.regionLat != null && form.regionLng != null ? { lat: form.regionLat, lng: form.regionLng, zoom: 14 } : null}
+                enableRegionSearch={false}
               />
               {form.lat != null && form.lng != null ? (
                 <p className="text-xs text-muted-foreground mt-2">
@@ -666,7 +775,7 @@ export function ListingForm({ editId }: { editId?: string }) {
               <h3 className="font-black text-xs mb-2">بازبینی نهایی اطلاعات</h3>
               <ReviewRow label="عنوان" value={form.title} />
               <ReviewRow label="نوع" value={`${PROPERTY_TYPE_LABELS[form.type] ?? form.type} · ${TRANSACTION_TYPE_LABELS[tt]}`} />
-              <ReviewRow label="موقعیت" value={`${province?.name ?? "—"} / ${city?.name ?? "—"}${form.areaId ? " / " + (city?.areas?.find((a) => a.id === form.areaId)?.name ?? "") : ""}`} />
+              <ReviewRow label="موقعیت" value={form.regionName ? `${form.regionName}${form.regionSlug ? ` (منطقه تأییدشده ویلاسنتو)` : ""}` : `${province?.name ?? "—"} / ${city?.name ?? "—"}`} />
               <ReviewRow label="قیمت" value={priceLine(tt, form.salePrice ? Number(form.salePrice) : null, form.rahnAmount ? Number(form.rahnAmount) : null, form.rentAmount ? Number(form.rentAmount) : null)} />
               <ReviewRow label="تصاویر" value={`${faNum(form.images.length)} تصویر`} />
             </div>

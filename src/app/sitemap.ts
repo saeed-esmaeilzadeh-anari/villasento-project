@@ -16,7 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = SITE_URL || "";
   const today = new Date();
 
-  const [props, articles, pages, cities] = await Promise.all([
+  const [props, articles, pages, cities, regions] = await Promise.all([
     db.property.findMany({
       where: { status: "PUBLISHED" },
       select: { id: true, slug: true, updatedAt: true, createdAt: true, city: { select: { name: true } } },
@@ -29,6 +29,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: { properties: { some: { status: "PUBLISHED" } } },
       select: { name: true },
       take: 300,
+    }),
+    // verified + active region landing pages (real geographic scopes)
+    db.region.findMany({
+      where: { isActive: true, geoStatus: "VERIFIED" },
+      select: { nameEn: true, updatedAt: true },
+      take: 500,
     }),
   ]);
 
@@ -44,6 +50,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // city pages
   for (const c of cities) {
     urls.push({ url: `${base}/city/${cityNameToSlug(c.name)}`, changeFrequency: "daily", priority: 0.8, lastModified: today });
+  }
+
+  // region landing pages (جاده سنتو / رضویه / ناظریه / ...)
+  for (const r of regions) {
+    urls.push({ url: `${base}/region/${r.nameEn}`, changeFrequency: "daily", priority: 0.8, lastModified: r.updatedAt ?? today });
   }
 
   // published listings — SEO slug when available

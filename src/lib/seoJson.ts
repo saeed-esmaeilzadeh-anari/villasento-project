@@ -83,7 +83,7 @@ export function faqJsonLd(faqs: { question: string; answer: string }[]) {
 /** RealEstateListing JSON-LD for the property page */
 export function listingJsonLd(p: {
   title: string; description: string; image: string | null;
-  city: string; province: string; lat: number | null; lng: number | null;
+  city?: string | null; province?: string | null; lat: number | null; lng: number | null;
   transactionType: string; salePrice?: number | null; rentAmount?: number | null;
   code: string; updatedAt?: string | Date | null;
   slugOrId?: string;
@@ -106,8 +106,8 @@ export function listingJsonLd(p: {
     datePosted: p.updatedAt ?? undefined,
     address: {
       "@type": "PostalAddress",
-      addressLocality: p.city,
-      addressRegion: p.province,
+      addressLocality: p.city ?? undefined,
+      addressRegion: p.province ?? undefined,
       addressCountry: "IR",
     },
     ...(p.lat && p.lng

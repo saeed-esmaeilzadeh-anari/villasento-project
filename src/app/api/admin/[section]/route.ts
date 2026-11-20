@@ -8,6 +8,7 @@ import * as Visits from "@/server/services/visits";
 import * as Contact from "@/server/services/contact";
 import * as Content from "@/server/services/content";
 import * as Props from "@/server/services/properties";
+import * as Regions from "@/server/services/regions";
 import { z } from "zod";
 
 type Ctx = { params: Promise<{ section: string }> };
@@ -37,6 +38,7 @@ export const GET = handler(async (req: Request, ctx: Ctx) => {
     case "banners": return ok({ items: await Content.adminBanners(user) });
     case "faqs": return ok({ items: await Content.adminFaqs(user) });
     case "cms": return ok({ items: await Content.adminCmsPages(user) });
+    case "regions": return ok(await Regions.adminListRegions(user, sp.get("q") ?? undefined));
     case "settings": return ok(await Admin.getSettings(user));
     case "audit": return ok({ items: await Admin.getAuditLogs(user, sp.get("q") ?? undefined) });
     case "export": {
@@ -129,6 +131,12 @@ export const POST = handler(async (req: Request, ctx: Ctx) => {
     case "cms": {
       if (body.action === "upsert") return ok(await Content.upsertCmsPage(user, body.data as never));
       if (body.action === "delete") return ok(await Content.deleteCmsPage(user, id));
+      break;
+    }
+    case "regions": {
+      if (body.action === "upsert") return ok(await Regions.upsertRegion(user, { ...((body.data ?? {}) as Regions.RegionUpsertInput), ...(body.id ? { id: body.id } : {}) }));
+      if (body.action === "toggle-active") return ok(await Regions.toggleRegionActive(user, id));
+      if (body.action === "delete") return ok(await Regions.deleteRegion(user, id));
       break;
     }
     case "settings": {

@@ -23,6 +23,18 @@ export const PLACE_EN: Record<string, string> = {
   "نیاوران": "niavaran", "الهیه": "elahiyeh", "زعفرانیه": "zaferanieh", "ولنجک": "velanjak",
   "مهرشهر": "mehrshahr", "فومن": "fuman", "مازندران": "mazandaran", "گیلان": "gilan",
   "آب‌علی": "ab-ali", "شمال": "shomal", "جاده چالوس": "chalus-road",
+  // Villasento target corridor (جاده سنتو / میان ولایت) — matches Region.nameEn
+  "جاده سنتو": "santoo-road", "رضویه": "razaviyeh", "قلعه سیاه": "razaviyeh",
+  "ناظریه": "nazariyeh", "چهارفصل": "chahar-fasl", "چهار فصل": "chahar-fasl",
+  "میان ولایت": "mian-velayat", "میان‌ولایت": "mian-velayat",
+  "روح‌آباد": "ruh-abad", "عشق‌آباد": "eshgh-abad", "عسگریه": "asgarieh",
+  "بازمرگان": "bazmargan", "سنگ سیاه": "sang-siah", "شاهین‌قلعه": "shahin-ghaleh",
+  "ریحان": "reyhan", "چهچه": "chehcheh", "چنارسوخته": "chenar-sokhteh",
+  "دوین": "dovin", "شیرحصار": "shir-hesar", "امینیه": "aminiyeh",
+  "خان سعادت": "khan-saadat", "احمدآباد مقبل": "ahmadabad-moghbel",
+  "فیلیان": "feilian", "خرابه امین": "kharabeh-amin", "قادرآباد": "ghader-abad",
+  "فرح‌آباد": "farah-abad", "حسن‌آباد برجی": "hassanabad-borji", "رباطو": "rabatoo",
+  "چاه‌مال": "chah-mal", "کلاته اسماعیل": "kalateh-esmail",
 };
 
 export function placeSlug(name?: string | null): string {

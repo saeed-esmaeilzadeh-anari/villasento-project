@@ -6,6 +6,7 @@ export type { SafeUser };
 import { todayStr, addDays } from "../dates";
 import { getSetting, getSettingNumber } from "../settings";
 import { placeSlug, propertyTypeEn, cityNameToSlug, citySlugToName } from "@/lib/placeSlug";
+import { regionWithDescendantsIds } from "./regions";
 
 export { cityNameToSlug, citySlugToName };
 
@@ -78,13 +79,18 @@ function genCode(): string {
 function buildSlug(p: {
   type: string; code: string; landArea: number | null; buildArea: number | null;
   city: { name: string } | null; area: { name: string } | null;
+  region?: { nameEn: string } | null;
 }): string {
   const parts: string[] = [];
   parts.push(propertyTypeEn(p.type));
+  if (p.region?.nameEn) {
+    // exact Latin slug of the region (village/road level) — most SEO-specific
+    parts.push(p.region.nameEn);
+  }
   const city = placeSlug(p.city?.name);
-  if (city) parts.push(city);
+  if (city && !p.region?.nameEn) parts.push(city);
   const area = placeSlug(p.area?.name);
-  if (area && area !== city) parts.push(area);
+  if (area && area !== city && !p.region?.nameEn) parts.push(area);
   const size = p.landArea ?? p.buildArea;
   if (size && size > 0) parts.push(`${size}m`);
   parts.push(p.code.toLowerCase().replace("vs-", "vs"));
@@ -140,6 +146,8 @@ export type SearchParams = {
   provinceId?: string;
   cityId?: string;
   areaId?: string;
+  /** Region scopes (id or Latin slug) — includes all descendants */
+  regions?: string[];
   transactionTypes?: string[];
   types?: string[];
   minPrice?: number;
@@ -178,6 +186,19 @@ export async function searchProperties(p: SearchParams) {
   if (p.cityId) where.cityId = p.cityId;
   if (p.provinceId) where.city = { provinceId: p.provinceId };
   if (p.areaId) where.areaId = p.areaId;
+  if (p.regions?.length) {
+    // resolve each region scope to itself + descendants (real region-ID links)
+    const idLists = await Promise.all(p.regions.map((r) => regionWithDescendantsIds(r)));
+    const ids = [...new Set(idLists.flat())];
+    if (!ids.length) {
+      // unknown/inactive region → match nothing instead of returning unrelated results
+      where.id = "__no_match__";
+    } else if (ids.length === 1) {
+      where.regionId = ids[0];
+    } else {
+      where.regionId = { in: ids };
+    }
+  }
   if (p.transactionTypes?.length) where.transactionType = { in: p.transactionTypes };
   if (p.types?.length) where.type = { in: p.types };
   if (p.documentStatus) where.documentStatus = p.documentStatus;
@@ -223,6 +244,7 @@ export async function searchProperties(p: SearchParams) {
       include: {
         city: { include: { province: true } },
         area: true,
+        region: { select: { id: true, name: true, nameEn: true, type: true, geoStatus: true, parentId: true } },
         images: { orderBy: { sort: "asc" } },
         amenities: { include: { amenity: true } },
         host: { select: { fullName: true, isHostVerified: true } },
@@ -250,8 +272,9 @@ export async function searchProperties(p: SearchParams) {
 export type PropertyRow = {
   id: string; code: string; slug?: string | null; title: string; type: string; transactionType: string;
   hostId: string; agentId: string | null;
-  cityId: string; city: { name: string; province: { name: string } };
+  cityId: string | null; city: { name: string; province: { name: string } } | null;
   areaId: string | null; area: { name: string } | null;
+  regionId: string | null; region: { id: string; name: string; nameEn: string; type: string; geoStatus: string } | null;
   address: string; lat: number | null; lng: number | null;
   landArea: number | null; buildArea: number | null;
   bedrooms: number; bathrooms: number; floors: number; buildYear: number | null;
@@ -270,6 +293,7 @@ export type PropertyRow = {
 };
 
 export function mapCard(pr: PropertyRow) {
+  const locLabel = pr.region?.name ?? pr.area?.name ?? pr.city?.name ?? "";
   return {
     id: pr.id,
     code: pr.code,
@@ -279,9 +303,14 @@ export function mapCard(pr: PropertyRow) {
     typeLabel: PROPERTY_TYPES[pr.type] ?? pr.type,
     transactionType: pr.transactionType,
     ttLabel: TRANSACTION_TYPES[pr.transactionType] ?? pr.transactionType,
-    city: pr.city?.name ?? "",
-    province: pr.city?.province?.name ?? "",
+    city: pr.city?.name ?? null,
+    province: pr.city?.province?.name ?? null,
     area: pr.area?.name ?? null,
+    region: pr.region
+      ? { id: pr.region.id, name: pr.region.name, nameEn: pr.region.nameEn, type: pr.region.type, geoStatus: pr.region.geoStatus }
+      : null,
+    locationLabel: locLabel,
+    regionSlug: pr.region?.nameEn ?? null,
     address: pr.address,
     landArea: pr.landArea,
     buildArea: pr.buildArea,
@@ -323,6 +352,7 @@ export async function propertyDetail(
     include: {
       city: { include: { province: true } },
       area: true,
+      region: { select: { id: true, name: true, nameEn: true, type: true, geoStatus: true, parentId: true } },
       images: { orderBy: { sort: "asc" } },
       amenities: { include: { amenity: true } },
       host: { select: { id: true, fullName: true, phone: true, isHostVerified: true, createdAt: true } },
@@ -343,6 +373,7 @@ export async function propertyDetail(
       include: {
         city: { include: { province: true } },
         area: true,
+        region: { select: { id: true, name: true, nameEn: true, type: true, geoStatus: true, parentId: true } },
         images: { orderBy: { sort: "asc" } },
         amenities: { include: { amenity: true } },
         host: { select: { id: true, fullName: true, phone: true, isHostVerified: true, createdAt: true } },
@@ -379,15 +410,22 @@ export async function propertyDetail(
   const showPhone = (await getSetting("listing.showPhone")) !== "false";
   const supportPhone = (await getSetting("site.supportPhone")) ?? "09356966365";
 
+  // similar listings: prefer the same region (region-ID link), then same type anywhere
+  const similarRegionIds = prop.regionId ? await regionWithDescendantsIds(prop.regionId) : [];
   const similar = await db.property.findMany({
     where: {
       id: { not: prop.id },
       status: "PUBLISHED",
-      OR: [{ type: prop.type }, { cityId: prop.cityId }],
+      OR: [
+        { type: prop.type },
+        ...(similarRegionIds.length ? [{ regionId: { in: similarRegionIds } }] : []),
+        ...(prop.cityId ? [{ cityId: prop.cityId }] : []),
+      ],
       transactionType: prop.transactionType,
     },
     include: {
       city: { include: { province: true } },
+      region: { select: { id: true, name: true, nameEn: true, type: true, geoStatus: true } },
       images: { orderBy: { sort: "asc" }, take: 1 },
       host: { select: { isHostVerified: true } },
     },
@@ -435,7 +473,7 @@ export async function propertyDetail(
         },
     similar: similar.map((s) => ({
       id: s.id, code: s.code, title: s.title, type: s.type, transactionType: s.transactionType,
-      city: s.city.name, salePrice: s.salePrice, rahnAmount: s.rahnAmount, rentAmount: s.rentAmount,
+      city: s.city?.name ?? s.region?.name ?? "", salePrice: s.salePrice, rahnAmount: s.rahnAmount, rentAmount: s.rentAmount,
       bedrooms: s.bedrooms, landArea: s.landArea, buildArea: s.buildArea,
       image: s.images[0]?.url ?? null,
     })),
@@ -455,6 +493,7 @@ export type ListingInput = {
   description?: string;
   cityId?: string;
   areaId?: string;
+  regionId?: string;
   address?: string;
   lat?: number;
   lng?: number;
@@ -486,7 +525,7 @@ export type ListingInput = {
 function validateListing(input: ListingInput, forSubmit: boolean) {
   if (forSubmit) {
     if (!input.title?.trim() || input.title.trim().length < 8) throw badRequest("عنوان آگهی باید حداقل ۸ نویسه باشد");
-    if (!input.cityId) throw badRequest("شهر را انتخاب کنید");
+    if (!input.cityId && !input.regionId) throw badRequest("منطقه یا شهر را انتخاب کنید");
     if (!input.transactionType || !(input.transactionType in TRANSACTION_TYPES)) throw badRequest("نوع معامله را انتخاب کنید");
     if (!input.type || !(input.type in PROPERTY_TYPES)) throw badRequest("نوع ملک را انتخاب کنید");
     if (!input.images?.length) throw badRequest("حداقل یک تصویر برای انتشار آگهی لازم است");
@@ -495,9 +534,33 @@ function validateListing(input: ListingInput, forSubmit: boolean) {
     if ((input.transactionType === "RENT" || input.transactionType === "RAHN_RENT") && !input.rentAmount) throw badRequest("مبلغ اجاره ماهانه را وارد کنید");
     if (!input.description?.trim() || input.description.trim().length < 30) throw badRequest("توضیحات آگهی باید حداقل ۳۰ نویسه باشد");
   }
-  if (input.cityId) {
-    // cityId validity checked in create/update
+}
+
+/** Validate region/city/area links server-side (no trusting client ids) */
+async function resolveLocation(input: ListingInput) {
+  let region: { id: string; legacyCityId: string | null } | null = null;
+  if (input.regionId) {
+    region = await db.region.findFirst({
+      where: { OR: [{ id: input.regionId }, { nameEn: input.regionId }], isActive: true },
+      select: { id: true, legacyCityId: true },
+    });
+    if (!region) throw badRequest("منطقه انتخابی نامعتبر است");
   }
+  let cityId: string | null = input.cityId ?? null;
+  if (cityId) {
+    const city = await db.city.findUnique({ where: { id: cityId } });
+    if (!city) throw badRequest("شهر نامعتبر است");
+  } else if (region?.legacyCityId) {
+    // backward compatibility: old city filters keep matching listings in legacy cities
+    cityId = region.legacyCityId;
+  }
+  if (input.areaId) {
+    const area = await db.area.findUnique({ where: { id: input.areaId } });
+    if (!area) throw badRequest("منطقه (Area) نامعتبر است");
+    if (cityId && area.cityId !== cityId) throw badRequest("منطقه انتخابی با شهر همخوانی ندارد");
+  }
+  if (!cityId && !region) throw badRequest("شهر یا منطقه را انتخاب کنید");
+  return { regionId: region?.id ?? null, cityId };
 }
 
 export async function createProperty(user: SafeUser, input: ListingInput) {
@@ -506,13 +569,7 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
   // moderation can be disabled by the admin (listing.requireApproval=false):
   // submitted listings then go live immediately
   const autoPublish = forSubmit && (await getSetting("listing.requireApproval")) === "false";
-  if (!input.cityId) throw badRequest("شهر را انتخاب کنید");
-  const city = await db.city.findUnique({ where: { id: input.cityId } });
-  if (!city) throw badRequest("شهر نامعتبر است");
-  if (input.areaId) {
-    const area = await db.area.findUnique({ where: { id: input.areaId } });
-    if (!area || area.cityId !== input.cityId) throw badRequest("منطقه انتخابی با شهر همخوانی ندارد");
-  }
+  const location = await resolveLocation(input);
   if (input.transactionType && !(input.transactionType in TRANSACTION_TYPES)) throw badRequest("نوع معامله نامعتبر است");
   if (input.type && !(input.type in PROPERTY_TYPES)) throw badRequest("نوع ملک نامعتبر است");
 
@@ -524,8 +581,9 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
       type: input.type && input.type in PROPERTY_TYPES ? input.type : "VILLA",
       transactionType: input.transactionType && input.transactionType in TRANSACTION_TYPES ? input.transactionType : "SALE",
       description: input.description ?? "",
-      cityId: input.cityId,
+      cityId: location.cityId,
       areaId: input.areaId || null,
+      regionId: location.regionId,
       address: input.address ?? "",
       lat: input.lat, lng: input.lng,
       landArea: input.landArea, buildArea: input.buildArea,
@@ -566,10 +624,13 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
   // SEO-friendly slug (type + location + size + code)
   try {
     const areaRow = input.areaId ? await db.area.findUnique({ where: { id: input.areaId } }) : null;
+    const regionRow = location.regionId ? await db.region.findUnique({ where: { id: location.regionId }, select: { nameEn: true } }) : null;
+    const cityRow = location.cityId ? await db.city.findUnique({ where: { id: location.cityId }, select: { name: true } }) : null;
     const slug = await assignSlug(
       buildSlug({
         type: prop.type, code: prop.code, landArea: prop.landArea, buildArea: prop.buildArea,
-        city: { name: city.name }, area: areaRow ? { name: areaRow.name } : null,
+        city: cityRow ? { name: cityRow.name } : null, area: areaRow ? { name: areaRow.name } : null,
+        region: regionRow ? { nameEn: regionRow.nameEn } : null,
       }),
       prop.id
     );
@@ -621,12 +682,19 @@ export async function updateProperty(user: SafeUser, id: string, input: ListingI
   if (input.lat != null) data.lat = input.lat;
   if (input.lng != null) data.lng = input.lng;
   if (input.negotiable != null) data.negotiable = input.negotiable;
-  if (input.cityId) {
-    const city = await db.city.findUnique({ where: { id: input.cityId } });
-    if (!city) throw badRequest("شهر نامعتبر است");
-    data.cityId = input.cityId;
+  // location update: server-side validation for region/city (IDOR-safe)
+  if (input.regionId !== undefined || input.cityId !== undefined || input.areaId !== undefined) {
+    const current = await db.property.findUnique({ where: { id }, select: { cityId: true, regionId: true, areaId: true } });
+    const merged: ListingInput = {
+      regionId: input.regionId !== undefined ? (input.regionId || undefined) : (current?.regionId ?? undefined),
+      cityId: input.cityId !== undefined ? (input.cityId || undefined) : (current?.cityId ?? undefined),
+      areaId: input.areaId !== undefined ? (input.areaId || undefined) : (current?.areaId ?? undefined),
+    };
+    const location = await resolveLocation(merged);
+    data.regionId = location.regionId;
+    data.cityId = location.cityId;
+    if (input.areaId !== undefined) data.areaId = input.areaId || null;
   }
-  if (input.areaId !== undefined) data.areaId = input.areaId || null;
   if (input.type && !(input.type in PROPERTY_TYPES)) throw badRequest("نوع ملک نامعتبر است");
   if (input.transactionType && !(input.transactionType in TRANSACTION_TYPES)) throw badRequest("نوع معامله نامعتبر است");
 
@@ -705,6 +773,7 @@ export async function myProperties(user: SafeUser) {
     where: { OR: [{ hostId: user.id }, { agentId: user.id }] },
     include: {
       city: { include: { province: true } },
+      region: { select: { id: true, name: true, nameEn: true, type: true, geoStatus: true } },
       images: { orderBy: { sort: "asc" }, take: 1 },
       _count: { select: { visitRequests: true, favorites: true } },
     },
@@ -714,7 +783,7 @@ export async function myProperties(user: SafeUser) {
     id: p.id, code: p.code, title: p.title,
     type: p.type, typeLabel: PROPERTY_TYPES[p.type] ?? p.type,
     transactionType: p.transactionType, ttLabel: TRANSACTION_TYPES[p.transactionType] ?? p.transactionType,
-    city: p.city.name, province: p.city.province.name,
+    city: p.city?.name ?? p.region?.name ?? null, province: p.city?.province?.name ?? null,
     status: p.status, statusLabel: LISTING_STATUS[p.status] ?? p.status,
     rejectionReason: p.rejectionReason,
     salePrice: p.salePrice, rahnAmount: p.rahnAmount, rentAmount: p.rentAmount,

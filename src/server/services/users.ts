@@ -239,7 +239,7 @@ export async function exportCsv(actor: SafeUser, entity: string): Promise<{ file
       code: p.code, title: p.title,
       type: PROPERTY_TYPES[p.type] ?? p.type,
       transactionType: TRANSACTION_TYPES[p.transactionType] ?? p.transactionType,
-      province: p.city.province.name, city: p.city.name,
+      province: p.city?.province?.name ?? "", city: p.city?.name ?? "", 
       status: LISTING_STATUS[p.status] ?? p.status,
       salePrice: p.salePrice ?? "", rahn: p.rahnAmount ?? "", rent: p.rentAmount ?? "",
       land: p.landArea ?? "", build: p.buildArea ?? "",

@@ -11,7 +11,7 @@ import { StatCard, EmptyState } from "@/components/site/misc";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, ListChecks, Users, Briefcase, CalendarClock, MessagesSquare,
-  Newspaper, Settings, ScrollText, Download, ShieldCheck, Eye, PlusCircle, UserPlus,
+  Newspaper, Settings, ScrollText, Download, ShieldCheck, Eye, PlusCircle, UserPlus, MapPin,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -24,6 +24,7 @@ import { UsersSection } from "./admin/Users";
 import { AgentsSection } from "./admin/Agents";
 import { RequestsSection } from "./admin/Requests";
 import { CmsSection } from "./admin/Cms";
+import { RegionsSection } from "./admin/Regions";
 import { SettingsSection } from "./admin/Settings";
 import { AuditSection } from "./admin/Audit";
 
@@ -34,6 +35,7 @@ const SECTIONS = [
   { key: "agents", label: "مشاوران", icon: Briefcase },
   { key: "requests", label: "درخواست‌ها و پیام‌ها", icon: CalendarClock },
   { key: "cms", label: "مدیریت محتوا", icon: Newspaper },
+  { key: "regions", label: "مناطق جغرافیایی", icon: MapPin },
   { key: "settings", label: "تنظیمات سامانه", icon: Settings },
   { key: "audit", label: "لاگ فعالیت‌ها", icon: ScrollText },
 ];
@@ -93,6 +95,7 @@ export function AdminView({ section }: { section?: string }) {
           {active === "agents" && <AgentsSection />}
           {active === "requests" && <RequestsSection />}
           {active === "cms" && <CmsSection />}
+          {active === "regions" && <RegionsSection />}
           {active === "settings" && <SettingsSection />}
           {active === "audit" && <AuditSection />}
         </div>

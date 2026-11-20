@@ -32,6 +32,7 @@ type HomeData = {
   byType: { type: string; count: number }[];
   byTransactionType: { tt: string; count: number }[];
   cities?: { name: string; count: number }[];
+  mainRegions?: { id: string; name: string; slug: string; typeLabel: string; count: number; lat: number | null; lng: number | null; geoStatus: string }[];
   demoMode?: boolean;
   stats: Record<string, number>;
   social: { label: string; url: string }[];
@@ -128,6 +129,41 @@ export function HomeView() {
       )}
 
       <div className="mx-auto max-w-7xl px-4 py-8 space-y-12">
+        {/* ── main regions (جاده سنتو / رضویه / ناظریه / چهارفصل) — real DB data ── */}
+        {!!data?.mainRegions?.length && (
+          <section>
+            <SectionTitle
+              title="محدوده‌های اصلی ویلاسنتو"
+              desc="تخصص ما در املاک جاده سنتو (جاده قدیم قوچان)، رضویه، ناظریه، چهارفصل و روستاهای اطراف مشهد است"
+              icon={<MapPin className="h-5 w-5 text-primary" />}
+              link="/search"
+            />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-5">
+              {data.mainRegions.map((r) => (
+                <a
+                  key={r.id}
+                  href={`/region/${r.slug}`}
+                  className="group relative overflow-hidden rounded-2xl border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all"
+                >
+                  <span className="absolute -left-6 -top-6 h-16 w-16 rounded-full bg-primary/10 group-hover:scale-150 transition-transform duration-500" aria-hidden />
+                  <div className="relative">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-black text-sm">املاک {r.name}</h3>
+                      <span className="text-[10px] font-bold text-muted-foreground rounded-full bg-muted px-2 py-0.5">{r.typeLabel}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                      {r.count > 0 ? `${faNum(r.count)} آگهی فعال در این محدوده` : "آگهی‌های این محدوده به‌زودی"}
+                    </p>
+                    <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-bold text-primary">
+                      مشاهده آگهی‌ها <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform" />
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Featured ── */}
         <ListingRow
           title="املاک ویژه و پیشنهادی"
@@ -259,7 +295,7 @@ export function HomeView() {
           <SectionTitle title="درباره ویلاسنتو" />
           <div className="text-sm leading-8 text-muted-foreground mt-4 space-y-3">
             <p>
-              ویلاسنتو (VillaSento) پلتفرم آنلاین املاک تفریحی و مسکونی برای خرید و فروش، رهن کامل و رهن و اجاره باغ، ویلا، باغ‌ویلا، خانه ویلایی و آپارتمان است. هدف ما ساده‌تر و مطمئن‌تر کردن مسیر معامله ملک است؛ از جستجوی دقیق با فیلترهای قیمت، متراژ و امکانات تا تماس مستقیم با مالک یا مشاور و ثبت درخواست بازدید آنلاین.
+              ویلاسنتو (VillaSento) پلتفرم آنلاین املاک تفریحی و مسکونی برای خرید و فروش، رهن کامل و رهن و اجاره باغ، ویلا، باغ‌ویلا، خانه ویلایی و آپارتمان است؛ با تمرکز تخصصی بر محدوده جاده سنتو (جاده قدیم قوچان)، رضویه، ناظریه، چهارفصل و روستاهای اطراف مشهد. هدف ما ساده‌تر و مطمئن‌تر کردن مسیر معامله ملک است؛ از جستجوی دقیق با فیلترهای قیمت، متراژ و امکانات تا تماس مستقیم با مالک یا مشاور و ثبت درخواست بازدید آنلاین.
             </p>
             <p>
               هر آگهی پیش از انتشار توسط کارشناسان بررسی می‌شود و مشخصات کلیدی مانند متراژ زمین و بنا، تعداد اتاق، سال ساخت و وضعیت سند به‌صورت استاندارد درج می‌شود. اگر مالک هستید، آگهی خود را رایگان ثبت کنید؛ اگر خریدار یا مستأجر هستید، از صفحات تخصصی <a className="text-primary hover:underline" href="/l/buy-villa">خرید ویلا</a>، <a className="text-primary hover:underline" href="/l/rent-villa">رهن و اجاره ویلا</a> و <a className="text-primary hover:underline" href="/l/buy-garden">خرید باغ</a> شروع کنید.

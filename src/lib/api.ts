@@ -114,7 +114,11 @@ export type PropertyCardT = {
   id: string; code: string; slug?: string | null; title: string;
   type: string; typeLabel: string;
   transactionType: string; ttLabel: string;
-  city: string; province: string; area: string | null;
+  city: string | null; province: string | null; area: string | null;
+  /** Region system (hierarchical, source of truth) */
+  region: { id: string; name: string; nameEn: string; type: string; geoStatus: string; lat?: number | null; lng?: number | null } | null;
+  regionSlug: string | null;
+  locationLabel: string;
   landArea: number | null; buildArea: number | null;
   bedrooms: number; bathrooms: number; buildYear: number | null;
   documentStatus: string; docLabel: string;
@@ -172,6 +176,24 @@ export type Lookups = {
   documentStatus: { key: string; name: string }[];
   listingStatus: { key: string; name: string }[];
   contactPrefs: { key: string; name: string }[];
+};
+
+// ── Region system (hierarchical geographic scopes) ──
+export type RegionNodeT = {
+  id: string; name: string; nameEn: string; altNames: string; type: string; typeLabel: string;
+  parentId: string | null; provinceId: string | null;
+  lat: number | null; lng: number | null; geoStatus: string;
+  isActive: boolean; isFeatured: boolean; sort: number; description: string;
+  legacyCityId: string | null; legacyAreaId: string | null;
+  count: number; totalCount: number;
+  path: string;
+  children: RegionNodeT[];
+};
+
+export type RegionsTree = {
+  tree: RegionNodeT[];
+  bbox: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
+  total: number;
 };
 
 export type VisitT = {

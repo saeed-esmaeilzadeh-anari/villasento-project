@@ -67,7 +67,7 @@ export default async function PropertyDetailPage({ params }: Props) {
     { name: "خانه", path: "/" },
     { name: "املاک", path: "/search" },
     { name: p.typeLabel, path: `/search?types=${p.type}` },
-    { name: p.city, path: `/city/${encodeURIComponent(p.city)}` },
+    ...(p.city ? [{ name: p.city, path: `/city/${encodeURIComponent(p.city)}` }] : p.region ? [{ name: p.region.name, path: `/region/${p.region.nameEn}` }] : []),
     { name: p.title, path: canonicalPath },
   ]);
   const listing = listingJsonLd({ ...p, slugOrId: p.slug ?? p.id });

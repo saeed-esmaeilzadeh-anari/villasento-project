@@ -118,7 +118,12 @@ export function PropertyView({ idOverride, initialData, suppressJsonLd }: { idOv
         <Link to="/" className="hover:text-primary">خانه</Link> /
         <Link to="/search" className="hover:text-primary">املاک</Link> /
         <Link to={`/search?types=${p.type}`} className="hover:text-primary">{p.typeLabel}</Link> /
-        <span className="text-foreground">{p.city}</span>
+        {p.region?.nameEn && (
+          <>
+            <Link to={`/region/${p.region.nameEn}`} className="hover:text-primary">املاک {p.region.name}</Link> /
+          </>
+        )}
+        <span className="text-foreground">{p.city ?? p.region?.name ?? p.typeLabel}</span>
       </nav>
 
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
@@ -131,7 +136,12 @@ export function PropertyView({ idOverride, initialData, suppressJsonLd }: { idOv
           </div>
           <h1 className="text-xl md:text-2xl font-black mt-2.5 leading-relaxed">{p.title}</h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-2">
-            <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {p.province}، {p.city}{p.area ? `، ${p.area}` : ""}</span>
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" />
+              {p.region?.name
+                ? `${p.region.name} — ${p.city ? p.city + "، " : ""}${p.province ?? ""}`
+                : `${p.province ?? ""}، ${p.city ?? ""}${p.area ? `، ${p.area}` : ""}`}
+            </span>
             <span>کد آگهی: <b className="text-foreground font-bold">{p.code}</b></span>
             <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {faNum(p.viewCount)} بازدید</span>
             {p.publishedAt && <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> انتشار: {faDateTime(p.publishedAt)}</span>}

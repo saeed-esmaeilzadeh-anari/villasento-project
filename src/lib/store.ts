@@ -50,6 +50,8 @@ export type SearchDraft = {
   cityId: string;
   cityName: string;
   areaId: string;
+  regionSlug: string; // Region system scope (Latin slug)
+  regionName: string;
   set: (patch: Partial<Omit<SearchDraft, "set" | "reset">>) => void;
   reset: () => void;
 };
@@ -58,6 +60,8 @@ const initialSearch = {
   tt: "",
   typeId: "",
   q: "",
+  regionSlug: "",
+  regionName: "",
   provinceId: "",
   provinceName: "",
   cityId: "",

@@ -81,7 +81,7 @@ model Area {
   sort       Int        @default(0)
   city       City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
   properties Property[]
-  Region     Region[]
+  regions    Region[]
 
   @@unique([cityId, name])
   @@index([cityId])

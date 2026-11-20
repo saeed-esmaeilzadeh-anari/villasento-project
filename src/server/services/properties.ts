@@ -4,7 +4,10 @@ import { audit } from "../audit";
 import { requireUser, type SafeUser } from "../session";
 export type { SafeUser };
 import { todayStr, addDays } from "../dates";
-import { getSettingNumber } from "../settings";
+import { getSetting, getSettingNumber } from "../settings";
+import { placeSlug, propertyTypeEn, cityNameToSlug, citySlugToName } from "@/lib/placeSlug";
+
+export { cityNameToSlug, citySlugToName };
 
 // ───────────────────────── Domain constants ─────────────────────────
 
@@ -66,6 +69,42 @@ function genCode(): string {
   return "VS-" + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// ── SEO-friendly slug ─────────────────────────────────────────────
+// Format: {type-en}-{city-en}[-{area-en}]-{size}m-{code}
+// e.g. "villa-tehran-lavasan-300m-vs3i82je" — ASCII-only, unique (code suffix)
+// (type/city transliteration lives in @/lib/placeSlug — shared with client)
+
+/** Build the SEO slug for a listing (type + location + size + code) */
+function buildSlug(p: {
+  type: string; code: string; landArea: number | null; buildArea: number | null;
+  city: { name: string } | null; area: { name: string } | null;
+}): string {
+  const parts: string[] = [];
+  parts.push(propertyTypeEn(p.type));
+  const city = placeSlug(p.city?.name);
+  if (city) parts.push(city);
+  const area = placeSlug(p.area?.name);
+  if (area && area !== city) parts.push(area);
+  const size = p.landArea ?? p.buildArea;
+  if (size && size > 0) parts.push(`${size}m`);
+  parts.push(p.code.toLowerCase().replace("vs-", "vs"));
+  const slug = parts.filter(Boolean).join("-").slice(0, 120);
+  return slug || p.code.toLowerCase();
+}
+
+/** Assign a unique slug (suffix -2, -3… on conflict) */
+async function assignSlug(base: string, propertyId: string): Promise<string> {
+  let slug = base;
+  for (let i = 2; i < 30; i++) {
+    const clash = await db.property.findFirst({ where: { slug, id: { not: propertyId } }, select: { id: true } });
+    if (!clash) return slug;
+    slug = `${base}-${i}`;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+export type PropertyCardData = ReturnType<typeof mapCard>;
+
 /** Lazy expiry: flip PUBLISHED listings past expiresAt to EXPIRED (single-row cheap check) */
 async function lazyExpire(id?: string) {
   try {
@@ -123,7 +162,8 @@ export type SearchParams = {
 export async function searchProperties(p: SearchParams) {
   await lazyExpire();
   const page = Math.max(1, p.page ?? 1);
-  const pageSize = Math.min(36, Math.max(1, p.pageSize ?? 12));
+  const configuredSize = await getSettingNumber("listing.pageSize", 12);
+  const pageSize = Math.min(36, Math.max(1, p.pageSize ?? configuredSize));
 
   const where: Record<string, unknown> = { status: "PUBLISHED" };
 
@@ -208,7 +248,7 @@ export async function searchProperties(p: SearchParams) {
 }
 
 export type PropertyRow = {
-  id: string; code: string; title: string; type: string; transactionType: string;
+  id: string; code: string; slug?: string | null; title: string; type: string; transactionType: string;
   hostId: string; agentId: string | null;
   cityId: string; city: { name: string; province: { name: string } };
   areaId: string | null; area: { name: string } | null;
@@ -233,6 +273,7 @@ export function mapCard(pr: PropertyRow) {
   return {
     id: pr.id,
     code: pr.code,
+    slug: pr.slug ?? null,
     title: pr.title,
     type: pr.type,
     typeLabel: PROPERTY_TYPES[pr.type] ?? pr.type,
@@ -271,10 +312,14 @@ export function mapCard(pr: PropertyRow) {
 
 // ───────────────────────── Detail ─────────────────────────
 
-export async function propertyDetail(id: string, viewer?: SafeUser | null) {
-  await lazyExpire(id);
-  const prop = (await db.property.findUnique({
-    where: { id },
+export async function propertyDetail(
+  idOrSlug: string,
+  viewer?: SafeUser | null,
+  opts?: { countView?: boolean }
+) {
+  await lazyExpire();
+  let prop = (await db.property.findUnique({
+    where: { id: idOrSlug },
     include: {
       city: { include: { province: true } },
       area: true,
@@ -286,26 +331,57 @@ export async function propertyDetail(id: string, viewer?: SafeUser | null) {
       },
     },
   })) as unknown as (PropertyRow & {
+    slug?: string | null;
     host: { id: string; fullName: string | null; phone: string; isHostVerified: boolean; createdAt: Date };
     agent: { id: string; fullName: string | null; phone: string; isHostVerified: boolean; createdAt: Date; agentProfile: { agencyName: string | null; bio: string | null; photoUrl: string | null } | null } | null;
   }) | null;
+
+  // slug fallback: clean URLs like /property/villa-tehran-300m-vs3i82je
+  if (!prop && /^[a-z0-9-]+$/.test(idOrSlug)) {
+    prop = (await db.property.findUnique({
+      where: { slug: idOrSlug },
+      include: {
+        city: { include: { province: true } },
+        area: true,
+        images: { orderBy: { sort: "asc" } },
+        amenities: { include: { amenity: true } },
+        host: { select: { id: true, fullName: true, phone: true, isHostVerified: true, createdAt: true } },
+        agent: {
+          select: { id: true, fullName: true, phone: true, isHostVerified: true, createdAt: true, agentProfile: { select: { agencyName: true, bio: true, photoUrl: true } } },
+        },
+      },
+    })) as unknown as typeof prop;
+  }
   if (!prop) throw notFound("آگهی یافت نشد");
+
+  // lazy slug backfill for listings created before the SEO upgrade
+  if (!prop.slug) {
+    try {
+      prop.slug = await assignSlug(buildSlug(prop), prop.id);
+      await db.property.update({ where: { id: prop.id }, data: { slug: prop.slug } });
+    } catch { /* non-fatal */ }
+  }
 
   const isOwnerOrAdmin = viewer && (viewer.id === prop.hostId || viewer.id === prop.agentId || isAdmin(viewer));
   if (!PUBLIC_STATUSES.includes(prop.status) && !isOwnerOrAdmin) throw notFound("این آگهی در دسترس نیست");
 
-  // record a real view (dedupe per viewer+day is handled by /api/track; direct detail fetch counts lightly)
-  if (!isOwnerOrAdmin && viewer?.id !== prop.hostId) {
-    await db.property.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+  // record a real view (dedupe per viewer+day is handled by /api/track; SSR renders skip counting)
+  if (opts?.countView !== false && !isOwnerOrAdmin && viewer?.id !== prop.hostId) {
+    await db.property.update({ where: { id: prop.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
   }
 
   const favorited = viewer
-    ? !!(await db.favorite.findUnique({ where: { userId_propertyId: { userId: viewer.id, propertyId: id } } }))
+    ? !!(await db.favorite.findUnique({ where: { userId_propertyId: { userId: viewer.id, propertyId: prop.id } } }))
     : false;
+
+  // "listing.showPhone" setting: when disabled, the official support number is
+  // shown instead of the poster's personal phone (privacy mode)
+  const showPhone = (await getSetting("listing.showPhone")) !== "false";
+  const supportPhone = (await getSetting("site.supportPhone")) ?? "09356966365";
 
   const similar = await db.property.findMany({
     where: {
-      id: { not: id },
+      id: { not: prop.id },
       status: "PUBLISHED",
       OR: [{ type: prop.type }, { cityId: prop.cityId }],
       transactionType: prop.transactionType,
@@ -339,7 +415,7 @@ export async function propertyDetail(id: string, viewer?: SafeUser | null) {
           kind: "AGENT" as const,
           id: prop.agent.id,
           name: prop.agent.fullName ?? "مشاور ویلاسنتو",
-          phone: prop.contactPhone ?? prop.agent.phone,
+          phone: showPhone ? (prop.contactPhone ?? prop.agent.phone) : supportPhone,
           verified: prop.agent.isHostVerified,
           agency: prop.agent.agentProfile?.agencyName ?? null,
           bio: prop.agent.agentProfile?.bio ?? null,
@@ -350,7 +426,7 @@ export async function propertyDetail(id: string, viewer?: SafeUser | null) {
           kind: "OWNER" as const,
           id: prop.host.id,
           name: prop.contactName ?? prop.host.fullName ?? "مالک",
-          phone: prop.contactPhone ?? prop.host.phone,
+          phone: showPhone ? (prop.contactPhone ?? prop.host.phone) : supportPhone,
           verified: prop.host.isHostVerified,
           agency: null,
           bio: null,
@@ -427,6 +503,9 @@ function validateListing(input: ListingInput, forSubmit: boolean) {
 export async function createProperty(user: SafeUser, input: ListingInput) {
   const forSubmit = !!input.submit;
   validateListing(input, forSubmit);
+  // moderation can be disabled by the admin (listing.requireApproval=false):
+  // submitted listings then go live immediately
+  const autoPublish = forSubmit && (await getSetting("listing.requireApproval")) === "false";
   if (!input.cityId) throw badRequest("شهر را انتخاب کنید");
   const city = await db.city.findUnique({ where: { id: input.cityId } });
   if (!city) throw badRequest("شهر نامعتبر است");
@@ -467,7 +546,10 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
       contactName: input.contactName ?? user.fullName ?? null,
       contactPhone: input.contactPhone ?? user.phone,
       contactPreference: input.contactPreference && input.contactPreference in CONTACT_PREFS ? input.contactPreference : "BOTH",
-      status: forSubmit ? "PENDING" : "DRAFT",
+      status: autoPublish ? "PUBLISHED" : forSubmit ? "PENDING" : "DRAFT",
+      ...(autoPublish
+        ? { publishedAt: new Date(), expiresAt: new Date(Date.now() + ((await getSettingNumber("listing.validityDays", 60)) || 60) * 86400000) }
+        : {}),
       images: {
         create: (input.images ?? []).slice(0, 12).map((url, i) => ({ url, sort: i })),
       },
@@ -481,6 +563,19 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
     },
   });
 
+  // SEO-friendly slug (type + location + size + code)
+  try {
+    const areaRow = input.areaId ? await db.area.findUnique({ where: { id: input.areaId } }) : null;
+    const slug = await assignSlug(
+      buildSlug({
+        type: prop.type, code: prop.code, landArea: prop.landArea, buildArea: prop.buildArea,
+        city: { name: city.name }, area: areaRow ? { name: areaRow.name } : null,
+      }),
+      prop.id
+    );
+    await db.property.update({ where: { id: prop.id }, data: { slug } });
+  } catch { /* non-fatal */ }
+
   // A user who posts a listing becomes OWNER
   if (user.role === "CUSTOMER") {
     await db.user.update({ where: { id: user.id }, data: { role: "OWNER" } });
@@ -488,7 +583,7 @@ export async function createProperty(user: SafeUser, input: ListingInput) {
 
   await audit({ actorId: user.id, action: forSubmit ? "LISTING_SUBMIT" : "LISTING_DRAFT", entity: "Property", entityId: prop.id, meta: { title: prop.title, code: prop.code } });
 
-  if (forSubmit) {
+  if (forSubmit && (await getSetting("notify.adminNewListing")) !== "false") {
     const admins = await db.user.findMany({ where: { role: { in: AMIN_ROLES } }, select: { id: true } });
     if (admins.length) {
       await db.notification.createMany({

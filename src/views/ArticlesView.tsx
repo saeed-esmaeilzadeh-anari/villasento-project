@@ -19,6 +19,14 @@ type ArticleListItem = {
   author: string; viewCount: number; publishedAt: string | null;
 };
 
+export type ArticleDetailT = {
+  id: string; title: string; slug: string; excerpt: string; content: string;
+  coverUrl: string | null; viewCount: number; publishedAt: string | null; updatedAt: string | Date;
+  authorName: string; tags: string;
+  category: { name: string; slug: string } | null;
+  related: { id: string; title: string; slug: string; excerpt: string; coverUrl: string | null; publishedAt: string | null }[];
+};
+
 export function ArticlesView() {
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -111,16 +119,12 @@ export function ArticlesView() {
   );
 }
 
-export function ArticleView({ slug }: { slug: string }) {
+export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: string; initialData?: ArticleDetailT | null; suppressJsonLd?: boolean }) {
   const { data: a, isLoading, error } = useQuery({
     queryKey: ["article", slug],
-    queryFn: () => api.get<{
-      id: string; title: string; slug: string; excerpt: string; content: string;
-      coverUrl: string | null; viewCount: number; publishedAt: string | null; updatedAt: string;
-      authorName: string; tags: string;
-      category: { name: string; slug: string } | null;
-      related: { id: string; title: string; slug: string; excerpt: string; coverUrl: string | null; publishedAt: string | null }[];
-    }>(`/api/articles/${slug}`),
+    queryFn: () => api.get<ArticleDetailT>(`/api/articles/${slug}`),
+    initialData,
+    staleTime: 60 * 1000,
   });
 
   useSeo({
@@ -129,7 +133,7 @@ export function ArticleView({ slug }: { slug: string }) {
     path: `/article/${slug}`,
     image: a?.coverUrl ?? null,
     noIndex: !!error,
-    jsonLd: a ? {
+    jsonLd: a && !suppressJsonLd ? {
       "@context": "https://schema.org",
       "@type": "Article",
       headline: a.title,

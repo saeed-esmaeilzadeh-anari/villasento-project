@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { badRequest, unauthorized } from "../http";
 import { smsProvider } from "../sms";
 import { audit } from "../audit";
-import { getSetting } from "../settings";
+import { getSetting, getSettingNumber } from "../settings";
 import { createSession, destroySession, getCurrentUser, requireUser } from "../session";
 import { hashPassword, verifyPassword, needsRehash, passwordPolicyError } from "./password";
 
@@ -42,10 +42,15 @@ export async function requestOtp(rawPhone: string) {
   const res = await smsProvider().sendOtp(phone, code);
   await audit({ actorPhone: phone, action: "AUTH_OTP_REQUEST", entity: "User" });
 
+  // SECURITY: the OTP code must never reach the frontend response.
+  // In demo mode (no SMS provider connected) the code is logged server-side only.
+  if (demo) {
+    console.log(`[OTP][demo] ${phone} → ${res.demoCode ?? code}`);
+  }
+
   return {
     ok: true,
     isNewUser: !user,
-    demoCode: demo ? (res.demoCode ?? code) : undefined,
   };
 }
 
@@ -160,7 +165,8 @@ export async function loginWithPassword(rawPhone: string, password: string) {
 export async function register(rawPhone: string, password: string, passwordConfirm: string, fullName?: string) {
   const phone = normalizePhone(rawPhone);
   if (password !== passwordConfirm) throw badRequest("رمز عبور و تکرار آن یکسان نیستند");
-  const err = passwordPolicyError(password);
+  const minLen = await getSettingNumber("security.passwordMinLength", 6);
+  const err = passwordPolicyError(password, minLen);
   if (err) throw badRequest(err);
   const existing = await db.user.findUnique({ where: { phone } });
   if (existing) throw badRequest("این شماره موبایل قبلاً ثبت شده است؛ وارد شوید یا رمز را بازیابی کنید");
@@ -196,7 +202,7 @@ export async function register(rawPhone: string, password: string, passwordConfi
 /** Set initial password while logged in (or overwrite if allowed) */
 export async function setPassword(newPassword: string) {
   const user = await requireUser();
-  const err = passwordPolicyError(newPassword);
+  const err = passwordPolicyError(newPassword, await getSettingNumber("security.passwordMinLength", 6));
   if (err) throw badRequest(err);
   const full = await db.user.findUnique({ where: { id: user.id } });
   if (full?.passwordHash) throw badRequest("برای این حساب قبلاً رمز عبور تنظیم شده است؛ از تغییر رمز استفاده کنید");
@@ -208,7 +214,7 @@ export async function setPassword(newPassword: string) {
 /** Change password (requires current password) */
 export async function changePassword(currentPassword: string, newPassword: string) {
   const user = await requireUser();
-  const err = passwordPolicyError(newPassword);
+  const err = passwordPolicyError(newPassword, await getSettingNumber("security.passwordMinLength", 6));
   if (err) throw badRequest(err);
   const full = await db.user.findUnique({ where: { id: user.id } });
   if (!full?.passwordHash) throw badRequest("ابتدا رمز عبور تنظیم کنید");
@@ -221,7 +227,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 /** Reset password via OTP: request-otp → verify code → set new password (one call) */
 export async function resetPassword(rawPhone: string, code: string, newPassword: string) {
   const phone = normalizePhone(rawPhone);
-  const err = passwordPolicyError(newPassword);
+  const err = passwordPolicyError(newPassword, await getSettingNumber("security.passwordMinLength", 6));
   if (err) throw badRequest(err);
   const cleanCode = faDigitsToEn(String(code ?? "")).replace(/\D/g, "");
   const otp = await db.otpCode.findFirst({

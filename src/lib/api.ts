@@ -108,10 +108,10 @@ export type Me = {
   mustChangePassword?: boolean;
 } | null;
 
-export type AmenityT = { id: string; key: string; name: string; icon: string };
+export type AmenityT = { id?: string; key: string; name: string; icon: string };
 
 export type PropertyCardT = {
-  id: string; code: string; title: string;
+  id: string; code: string; slug?: string | null; title: string;
   type: string; typeLabel: string;
   transactionType: string; ttLabel: string;
   city: string; province: string; area: string | null;
@@ -120,7 +120,8 @@ export type PropertyCardT = {
   documentStatus: string; docLabel: string;
   salePrice: number | null; rahnAmount: number | null; rentAmount: number | null;
   negotiable: boolean; isFeatured: boolean; viewCount: number;
-  publishedAt: string | null; updatedAt: string | null; createdAt: string | null;
+  /** Dates arrive as ISO strings over the API and as Date objects from SSR initial data */
+  publishedAt: string | Date | null; updatedAt: string | Date | null; createdAt: string | Date | null;
   image: string | null; imageCount: number;
   amenities: AmenityT[];
   lat: number | null; lng: number | null;
@@ -142,7 +143,7 @@ export type PropertyDetailT = PropertyCardT & {
   amenitiesExtra: string[];
   videoUrl: string | null;
   videoPosterUrl?: string | null; tourUrl: string | null;
-  status: string; rejectionReason: string | null; expiresAt: string | null;
+  status: string; rejectionReason: string | null; expiresAt: string | Date | null;
   allAmenities: AmenityT[];
   images: string[];
   owner: OwnerT;

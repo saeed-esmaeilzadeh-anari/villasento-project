@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type Me, type VisitT, type Lookups } from "@/lib/api";
+import { api, type Me, type VisitT, type Lookups, type PropertyCardT } from "@/lib/api";
 import { Link, navigate } from "@/lib/router";
-import { useAuth } from "@/lib/store";
+import { useAuth, useHistory } from "@/lib/store";
 import { useSeo } from "@/lib/seo";
 import {
   faNum, faDateTime, shortMoney, priceLine, BRAND,
@@ -126,6 +126,8 @@ function OverviewTab({ me, onGo }: { me: NonNullable<Me>; onGo: (t: string) => v
         <StatCard title="مجموع بازدید" value={totalViews} icon={<Eye className="h-5 w-5" />} />
       </div>
 
+      <RecentlyViewed />
+
       <div className="grid md:grid-cols-2 gap-4">
         <div className="rounded-2xl border bg-card p-5">
           <div className="flex items-center justify-between mb-3">
@@ -169,6 +171,48 @@ function OverviewTab({ me, onGo }: { me: NonNullable<Me>; onGo: (t: string) => v
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ───────────────── Recently viewed ─────────────────
+function RecentlyViewed() {
+  const ids = useHistory((s) => s.ids);
+  const clear = useHistory((s) => s.clear);
+  const { data, isLoading } = useQuery({
+    queryKey: ["recently-viewed", ids.slice(0, 8).join(",")],
+    queryFn: () => api.get<{ items: PropertyCardT[] }>(`/api/properties?ids=${ids.slice(0, 8).join(",")}`),
+    enabled: ids.length > 0,
+    staleTime: 60 * 1000,
+  });
+
+  if (ids.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border bg-card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-black text-sm">بازدیدهای اخیر شما</h3>
+        <button className="text-xs text-muted-foreground hover:text-red-500 transition-colors" onClick={() => clear()}>پاک کردن</button>
+      </div>
+      {isLoading ? (
+        <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
+      ) : (data?.items ?? []).length === 0 ? (
+        <p className="text-xs text-muted-foreground py-4 text-center">آگهی‌های بازدیدشده دیگر در دسترس نیستند</p>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {data!.items.map((p) => (
+            <Link key={p.id} to={`/property/${p.id}`} className="flex items-center gap-3 rounded-xl hover:bg-muted/60 p-2 transition-colors">
+              <span className="w-14 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
+                {p.image && <img src={p.image} alt={p.title} loading="lazy" className="h-full w-full object-cover" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-bold line-clamp-1">{p.title}</span>
+                <span className="block text-[11px] text-primary font-bold mt-0.5">{priceLine(p.transactionType, p.salePrice, p.rahnAmount, p.rentAmount)}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

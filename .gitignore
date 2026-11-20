@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# SQLite database + runtime temp files (never commit, never let tools scan)
+/db/*.db
+/db/*.db-shm
+/db/*.db-wal
+/db/*.db-journal
+
 
 # typescript
 *.tsbuildinfo
@@ -54,10 +60,3 @@ server.log
 /skills/
 # user-uploaded media
 uploads/
-
-
-# SQLite database + runtime temp files (never commit, never let tools scan)
-/db/*.db
-/db/*.db-shm
-/db/*.db-wal
-/db/*.db-journal

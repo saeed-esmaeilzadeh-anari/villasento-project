@@ -39,6 +39,12 @@ export function Header() {
   const { me, loading, openAuth, logout } = useAuth();
   const compareCount = useCompare((s) => s.ids.length);
   const [themeOpen, setThemeOpen] = useState(false);
+  const { data: site } = useQuery({
+    queryKey: ["home"],
+    queryFn: () => api.get<{ site?: { supportPhone: string } }>('/api/home'),
+    staleTime: 5 * 60 * 1000,
+    select: (d) => d.site,
+  });
   const { data: notif } = useQuery({
     queryKey: ["notifications", me?.id],
     queryFn: () => api.get<{ items: { id: string; title: string; body: string; readAt: string | null; createdAt: string; link?: string | null }[]; unread: number }>("/api/notifications"),
@@ -129,6 +135,16 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* official contact (click-to-call) */}
+            <a
+              href={`tel:${(site?.supportPhone ?? "09356966365").replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)))}`}
+              className="hidden xl:flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold text-primary hover:bg-primary/5 transition-colors"
+              aria-label="تماس با ویلاسنتو"
+            >
+              <Phone className="h-4 w-4" />
+              <span dir="ltr">{faNum(site?.supportPhone ?? "09356966365")}</span>
+            </a>
+
             <Button asChild variant="outline" size="sm" className="hidden md:inline-flex font-bold border-primary/30 text-primary hover:bg-primary/5">
               <Link to="/new-listing">
                 <PlusCircle className="h-4 w-4" />
@@ -233,27 +249,33 @@ export function Header() {
   );
 }
 
-// quick-login helper used by AuthDialog demo section
+/** Demo accounts hint — ONLY rendered when demo mode is enabled
+ *  (DEMO_MODE env / site.demoMode setting; off in production by default) */
 export function DemoHint() {
   const [hint, setHint] = useState(true);
+  const { data: home } = useQuery({
+    queryKey: ["home"],
+    queryFn: () => api.get<{ demoMode?: boolean }>("/api/home"),
+    staleTime: 5 * 60 * 1000,
+  });
   useEffect(() => {
     const t = setTimeout(() => setHint(false), 15000);
     return () => clearTimeout(t);
   }, []);
-  if (!hint) return null;
+  if (!home?.demoMode || !hint) return null;
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-72 rounded-xl border bg-card p-3 text-xs shadow-lg">
+    <div className="fixed bottom-4 right-4 z-50 max-w-72 rounded-xl border bg-card p-3 text-xs shadow-lg" dir="rtl">
       <button className="absolute top-1 left-1 text-muted-foreground hover:text-foreground" onClick={() => setHint(false)} aria-label="بستن">
         <X className="h-3.5 w-3.5" />
       </button>
-      <div className="font-bold mb-1 flex items-center gap-1"><KeyRound className="h-3.5 w-3.5" /> حساب‌های آزمایشی</div>
+      <div className="font-bold mb-1 flex items-center gap-1"><KeyRound className="h-3.5 w-3.5" /> حساب‌های آزمایشی (حالت نمایشی)</div>
       <div className="space-y-0.5 text-muted-foreground leading-5">
         <div>مدیر: {faNum("09120000001")}</div>
         <div>مشاور: {faNum("09120000002")}</div>
         <div>مالک: {faNum("09120000005")}</div>
         <div>کاربر: {faNum("09123456789")}</div>
       </div>
-      <div className="mt-1 text-[10px] text-muted-foreground">رمز همه: {faNum("123456")} — یا کد OTP نمایشی</div>
+      <div className="mt-1 text-[10px] text-muted-foreground">رمز همه: {faNum("123456")} — با تب «ورود» و رمز عبور وارد شوید</div>
     </div>
   );
 }

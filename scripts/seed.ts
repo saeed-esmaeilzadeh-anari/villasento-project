@@ -17,6 +17,16 @@ function hashPassword(plain: string): string {
 
 const DEMO_PASSWORD = "123456";
 
+/** Persian→Latin map for seed cities/areas (subset of the runtime map in src/lib/placeSlug.ts) */
+const CITY_EN: Record<string, string> = {
+  "تهران": "tehran", "مشهد": "mashhad", "کرج": "karaj", "اصفهان": "isfahan", "شیراز": "shiraz",
+  "تبریز": "tabriz", "قم": "qom", "رشت": "rasht", "ساری": "sari", "گرگان": "gorgan",
+  "بابل": "babol", "آمل": "amol", "نوشهر": "nowshahr", "چالوس": "chalus", "تنکابن": "tonekabon",
+  "رامسر": "ramsar", "انزلی": "anzali", "لنگرود": "langarud", "لواسان": "lavasan",
+  "فومن": "fuman", "کاشان": "kashan", "شاندیز": "shandiz", "مهرشهر": "mehrshahr",
+  "باغ شمال": "bagh-shomal", "الهیه": "elahiyeh", "شمال": "shomal",
+};
+
 const d = (offset: number) => {
   const dt = new Date();
   dt.setDate(dt.getDate() + offset);
@@ -300,7 +310,7 @@ async function main() {
       views: 0,
     },
     {
-      host: owner1.id, agent: agent1.id, title: "باغ‌ویلای رویال درانتشار تهران، پیشنهاد ویژه", type: "GARDEN_VILLA", tt: "SALE",
+      host: owner1.id, agent: agent1.id, title: "باغ‌ویلای رویال در تهران، پیشنهاد ویژه", type: "GARDEN_VILLA", tt: "SALE",
       city: "لواسان", areaIdx: 2, address: "درانتشار، انتهای بلوار اصلی",
       desc: "باغ‌ویلای درانتشار با استخر بی‌نهایت، سینمای خانگی و زمین والیبال؛ گزینه‌ای بی‌نظیر برای سرمایه‌گذاری لوکس.",
       land: 1200, build: 420, bedrooms: 5, baths: 4, floors: 2, year: 1402, doc: "SINGLE_SHEET",
@@ -491,15 +501,11 @@ async function main() {
       { key: "site.name", value: "ویلاسنتو" },
       { key: "site.nameEn", value: "VillaSento" },
       { key: "site.tagline", value: "مرجع خرید، فروش، رهن و اجاره باغ، ویلا و باغ‌ویلا" },
-      { key: "site.supportPhone", value: "۰۲۱-۹۱۰۰۰۰۰۰" },
-      { key: "site.email", value: "info@villasento.example" },
-      { key: "site.address", value: "تهران، خیابان ولی‌عصر، برج نگین، طبقه ۹" },
+      { key: "site.supportPhone", value: "09356966365" },
+      { key: "site.email", value: "info@villasento.ir" },
+      { key: "site.address", value: "تهران، ایران" },
       { key: "site.workingHours", value: "شنبه تا پنجشنبه ۹ تا ۱۸" },
-      { key: "site.social", value: JSON.stringify([
-        { label: "اینستاگرام", url: "https://instagram.com/villasento" },
-        { label: "تلگرام", url: "https://t.me/villasento" },
-        { label: "لینکدین", url: "https://linkedin.com/company/villasento" },
-      ]) },
+      { key: "site.social", value: "[]" }, // only fill with REAL social accounts
       { key: "site.menus", value: JSON.stringify({
         main: [
           { label: "صفحه اصلی", to: "/" },
@@ -512,7 +518,7 @@ async function main() {
       }) },
       { key: "seo.defaultTitle", value: "ویلاسنتو | خرید، فروش، رهن و اجاره باغ و ویلا" },
       { key: "seo.defaultDescription", value: "ویلاسنتو مرجع خرید و فروش، رهن و اجاره باغ، ویلا، باغ‌ویلا و املاک تفریحی و مسکونی با آگهی‌های تأییدشده و مشاوران معتمد." },
-      { key: "site.stats", value: JSON.stringify({ listings: propIds.filter((_, i) => [0,1,2,3,4,5,6,7,11,13].includes(i)).length + 1240, agents: 3 + 48, cities: 16, deals: 820 }) },
+      { key: "site.stats", value: JSON.stringify({}) }, // real stats are computed below from the DB
       { key: "listing.validityDays", value: "60" },
       { key: "listing.maxImages", value: "12" },
       { key: "upload.maxSizeMB", value: "5" },
@@ -552,6 +558,38 @@ async function main() {
       { actorId: admin2.id, actorPhone: admin2.phone, action: "ARTICLE_CREATE", entity: "Article", meta: JSON.stringify({ count: 3 }) },
     ],
   });
+
+  // ── honest home stats (real DB counts, no fake marketing numbers) ──
+  const [publishedCount, agentsCount, citiesCount, dealsCount] = await Promise.all([
+    db.property.count({ where: { status: "PUBLISHED" } }),
+    db.user.count({ where: { role: "AGENT", isHostVerified: true } }),
+    db.city.count({ where: { properties: { some: { status: "PUBLISHED" } } } }),
+    db.booking.count({ where: { status: { in: ["CONFIRMED", "COMPLETED"] } } }),
+  ]);
+  await db.systemSetting.upsert({
+    where: { key: "site.stats" },
+    create: { key: "site.stats", value: JSON.stringify({ listings: publishedCount, agents: agentsCount, cities: citiesCount, deals: dealsCount }) },
+    update: { value: JSON.stringify({ listings: publishedCount, agents: agentsCount, cities: citiesCount, deals: dealsCount }) },
+  });
+
+  // ── SEO slugs for every listing (same scheme as the runtime) ──
+  const TYPE_EN: Record<string, string> = { GARDEN: "garden", VILLA: "villa", GARDEN_VILLA: "garden-villa", HOUSE: "house", APARTMENT: "apartment", LAND: "land" };
+  const all = await db.property.findMany({ include: { city: true, area: true } });
+  for (const p of all) {
+    if (p.slug) continue;
+    const parts = [TYPE_EN[p.type] ?? "property"];
+    const cityEn = CITY_EN[p.city.name] ?? null;
+    if (cityEn) parts.push(cityEn);
+    const areaEn = p.area ? (CITY_EN[p.area.name] ?? null) : null;
+    if (areaEn && areaEn !== cityEn) parts.push(areaEn);
+    const size = p.landArea ?? p.buildArea;
+    if (size) parts.push(`${size}m`);
+    parts.push(p.code.toLowerCase().replace("vs-", "vs"));
+    let slug = parts.filter(Boolean).join("-");
+    let n = 2;
+    while (await db.property.findFirst({ where: { slug, id: { not: p.id } } })) slug = `${parts.filter(Boolean).join("-")}-${n++}`;
+    await db.property.update({ where: { id: p.id }, data: { slug } });
+  }
 
   console.log("✅ VillaSento seed complete:");
   console.log(`   Users: 10 (1 super_admin, 1 admin, 3 agents, 2 owners, 3 customers) — password: ${DEMO_PASSWORD}`);

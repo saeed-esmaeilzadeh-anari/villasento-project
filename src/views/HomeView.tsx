@@ -5,8 +5,9 @@ import { api } from "@/lib/api";
 import type { PropertyCardT } from "@/lib/api";
 import { SearchBox } from "@/components/site/SearchBox";
 import { PropertyCard } from "@/components/site/PropertyCard";
-import { useSeo, organizationJsonLd } from "@/lib/seo";
+import { useSeo, organizationJsonLd, faqJsonLd } from "@/lib/seo";
 import { faNum, BRAND, TRANSACTION_TYPE_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/fa";
+import { cityNameToSlug } from "@/lib/placeSlug";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ type HomeData = {
   faqs: { id: string; question: string; answer: string }[];
   byType: { type: string; count: number }[];
   byTransactionType: { tt: string; count: number }[];
+  cities?: { name: string; count: number }[];
+  demoMode?: boolean;
   stats: Record<string, number>;
   social: { label: string; url: string }[];
   site: { name: string; tagline: string; supportPhone: string; email: string; address: string };
@@ -61,7 +64,10 @@ export function HomeView() {
     title: "ویلاسنتو | خرید، فروش، رهن و اجاره باغ، ویلا و باغ‌ویلا",
     description: "مرجع تخصصی املاک تفریحی و مسکونی؛ آگهی‌های تأییدشده فروش، رهن کامل، رهن و اجاره باغ، ویلا و باغ‌ویلا با مشاوران معتمد و درخواست بازدید آنلاین.",
     path: "/",
-    jsonLd: organizationJsonLd(data?.site.supportPhone ?? "021-91000000", data?.site.address ?? "تهران"),
+    jsonLd: organizationJsonLd(data?.site.supportPhone ?? "09356966365", data?.site.address ?? "تهران"),
+    jsonLdExtra: data?.faqs?.length
+      ? [{ id: "vs-jsonld-faq", data: faqJsonLd(data.faqs.map((f) => ({ question: f.question, answer: f.answer }))) }]
+      : [],
   });
 
   const banners = (position: string) => data?.banners.filter((b) => b.position === position) ?? [];
@@ -156,6 +162,42 @@ export function HomeView() {
           isLoading={isLoading}
         />
 
+        {/* ── quick transaction landings (internal linking) ── */}
+        <section>
+          <SectionTitle title="دسترسی سریع بر اساس نوع معامله" desc="صفحات تخصصی خرید، فروش، رهن و اجاره" />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 mt-5">
+            {[
+              { label: "خرید ویلا", href: "/l/buy-villa" },
+              { label: "فروش ویلا", href: "/l/sell-villa" },
+              { label: "رهن و اجاره ویلا", href: "/l/rent-villa" },
+              { label: "خرید باغ", href: "/l/buy-garden" },
+              { label: "خرید خانه و آپارتمان", href: "/l/buy-house" },
+              { label: "رهن و اجاره خانه", href: "/l/rent-house" },
+              { label: "خرید زمین و کلنگی", href: "/l/buy-land" },
+              { label: "ویلا شمال", href: "/l/villas-north" },
+            ].map((x) => (
+              <a key={x.href} href={x.href} className="group flex items-center justify-between rounded-xl border bg-card px-4 py-3 text-sm font-bold hover:border-primary/40 hover:text-primary transition-colors">
+                {x.label}
+                <ArrowLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* ── cities (internal linking + local SEO) ── */}
+        {!!data?.cities?.length && (
+          <section>
+            <SectionTitle title="املاک در شهرها" desc="فهرست آگهی‌های هر شهر را ببینید" />
+            <div className="flex flex-wrap gap-2 mt-5">
+              {data.cities.map((c) => (
+                <a key={c.name} href={`/city/${cityNameToSlug(c.name)}`} className="rounded-full border bg-card px-4 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors">
+                  املاک {c.name} <span className="opacity-60">({faNum(c.count)})</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Services ── */}
         <section>
           <SectionTitle title="خدمات ویلاسنتو" desc="چرا معامله در ویلاسنتو مطمئن‌تر است؟" />
@@ -212,6 +254,19 @@ export function HomeView() {
           </div>
         </section>
 
+        {/* ── About (real content) ── */}
+        <section className="max-w-4xl">
+          <SectionTitle title="درباره ویلاسنتو" />
+          <div className="text-sm leading-8 text-muted-foreground mt-4 space-y-3">
+            <p>
+              ویلاسنتو (VillaSento) پلتفرم آنلاین املاک تفریحی و مسکونی برای خرید و فروش، رهن کامل و رهن و اجاره باغ، ویلا، باغ‌ویلا، خانه ویلایی و آپارتمان است. هدف ما ساده‌تر و مطمئن‌تر کردن مسیر معامله ملک است؛ از جستجوی دقیق با فیلترهای قیمت، متراژ و امکانات تا تماس مستقیم با مالک یا مشاور و ثبت درخواست بازدید آنلاین.
+            </p>
+            <p>
+              هر آگهی پیش از انتشار توسط کارشناسان بررسی می‌شود و مشخصات کلیدی مانند متراژ زمین و بنا، تعداد اتاق، سال ساخت و وضعیت سند به‌صورت استاندارد درج می‌شود. اگر مالک هستید، آگهی خود را رایگان ثبت کنید؛ اگر خریدار یا مستأجر هستید، از صفحات تخصصی <a className="text-primary hover:underline" href="/l/buy-villa">خرید ویلا</a>، <a className="text-primary hover:underline" href="/l/rent-villa">رهن و اجاره ویلا</a> و <a className="text-primary hover:underline" href="/l/buy-garden">خرید باغ</a> شروع کنید.
+            </p>
+          </div>
+        </section>
+
         {/* ── FAQs ── */}
         {!!data?.faqs.length && (
           <section className="max-w-3xl mx-auto">
@@ -237,8 +292,8 @@ export function HomeView() {
           </div>
           <div className="flex gap-2">
             <Button size="lg" asChild>
-              <a href={`tel:${(data?.site.supportPhone ?? "02191000000").replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)))}`}>
-                <Phone className="h-4 w-4" /> {data?.site.supportPhone ?? "۰۲۱-۹۱۰۰۰۰۰۰"}
+              <a href={`tel:${(data?.site.supportPhone ?? "09356966365").replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)))}`}>
+                <Phone className="h-4 w-4" /> {data?.site.supportPhone ? faNum(data.site.supportPhone) : "۰۹۳۵۶۹۶۶۳۶۵"}
               </a>
             </Button>
             <Button size="lg" variant="outline" asChild>

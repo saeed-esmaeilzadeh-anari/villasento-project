@@ -31,13 +31,16 @@ export async function listArticles(opts: { categoryId?: string; q?: string; page
   };
 }
 
-export async function articleBySlug(slug: string) {
+export async function articleBySlug(slug: string, opts?: { countView?: boolean }) {
   const a = await db.article.findUnique({
     where: { slug },
     include: { category: { select: { name: true, slug: true } }, author: { select: { fullName: true } } },
   });
   if (!a || !a.isPublished) throw notFound("مقاله یافت نشد");
-  await db.article.update({ where: { id: a.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+  // SSR page render skips counting — the client API fetch records the real view
+  if (opts?.countView !== false) {
+    await db.article.update({ where: { id: a.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+  }
   const related = await db.article.findMany({
     where: { isPublished: true, id: { not: a.id }, ...(a.categoryId ? { categoryId: a.categoryId } : {}) },
     select: { id: true, title: true, slug: true, excerpt: true, coverUrl: true, publishedAt: true },

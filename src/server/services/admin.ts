@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { badRequest, forbidden, notFound } from "../http";
 import { audit } from "../audit";
 import { type SafeUser, requireUser } from "../session";
-import { getAllSettings, setSetting, SETTING_DEFAULTS } from "../settings";
+import { getAllSettings, getSetting, setSetting, SETTING_DEFAULTS } from "../settings";
 import { isAdmin, LISTING_STATUSES } from "./properties";
 
 function adminGuard(user: Pick<SafeUser, "role">) {
@@ -80,19 +80,21 @@ export async function setListingStatus(user: SafeUser, id: string, to: string, r
   if (featured != null) data.isFeatured = featured;
   await db.property.update({ where: { id }, data });
 
-  // notify owner
+  // notify owner (can be disabled via notify.listingStatus setting)
   const statusFa: Record<string, string> = {
     PUBLISHED: "تأیید و منتشر شد", APPROVED: "تأیید شد (در انتظار انتشار)",
     REJECTED: "رد شد", EXPIRED: "منقضی شد", ARCHIVED: "بایگانی شد", PENDING: "برای بررسی مجدد ارسال شد",
   };
-  await db.notification.create({
-    data: {
-      userId: prop.hostId, type: "LISTING",
-      title: "وضعیت آگهی شما تغییر کرد",
-      body: `آگهی «${prop.title}» ${statusFa[to] ?? ""}${to === "REJECTED" ? `. دلیل: ${reason}` : ""}.`,
-      link: "#/account/listings",
-    },
-  });
+  if ((await getSetting("notify.listingStatus")) !== "false") {
+    await db.notification.create({
+      data: {
+        userId: prop.hostId, type: "LISTING",
+        title: "وضعیت آگهی شما تغییر کرد",
+        body: `آگهی «${prop.title}» ${statusFa[to] ?? ""}${to === "REJECTED" ? `. دلیل: ${reason}` : ""}.`,
+        link: "#/account/listings",
+      },
+    });
+  }
   await audit({ actorId: user.id, action: `LISTING_${to}`, entity: "Property", entityId: id, meta: { reason, featured } });
   return { ok: true };
 }

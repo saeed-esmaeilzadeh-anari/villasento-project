@@ -1,8 +1,18 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  siteUrl,
+  organizationJsonLd,
+  websiteJsonLd,
+  breadcrumbJsonLd,
+  faqJsonLd,
+  listingJsonLd,
+  JSONLD_IDS,
+} from "./seoJson";
 
-const SITE_URL = typeof window !== "undefined" ? window.location.origin : "";
+// Re-export pure builders so client components can import everything from "@/lib/seo"
+export { siteUrl, organizationJsonLd, websiteJsonLd, breadcrumbJsonLd, faqJsonLd, listingJsonLd, JSONLD_IDS };
 
 function upsertMeta(attr: "name" | "property", key: string, content: string) {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
@@ -42,24 +52,30 @@ function upsertJsonLd(id: string, data: unknown | null) {
 export type SeoInput = {
   title: string;
   description?: string;
-  path?: string; // hash path e.g. "/property/xyz"
+  /** Clean SSR path of this content, e.g. "/property/villa-tehran-300m-vs1234" */
+  path?: string;
   image?: string | null;
   jsonLd?: unknown | null;
+  jsonLdExtra?: { id: string; data: unknown | null }[];
   noIndex?: boolean;
 };
 
-/** Client-side per-route SEO: <title>, meta description, OG tags, canonical + optional JSON-LD */
-export function useSeo({ title, description, path, image, jsonLd, noIndex }: SeoInput) {
+/**
+ * Client-side per-route SEO: <title>, meta description, OG/Twitter, canonical
+ * + JSON-LD. Canonical points at the CLEAN SSR URL (never the #fragment) so
+ * crawl signals consolidate on the server-rendered URL.
+ */
+export function useSeo({ title, description, path, image, jsonLd, jsonLdExtra, noIndex }: SeoInput) {
   useEffect(() => {
     document.title = title;
     if (description) {
       upsertMeta("name", "description", description);
     }
-    const url = SITE_URL + (path ? "/#" + path : "/");
+    const url = siteUrl(path ?? "/");
     if (noIndex) {
       upsertMeta("name", "robots", "noindex, follow");
     } else {
-      upsertMeta("name", "robots", "index, follow");
+      upsertMeta("name", "robots", "index, follow, max-image-preview:large");
     }
     upsertCanonical(url);
     upsertMeta("property", "og:title", title);
@@ -68,58 +84,17 @@ export function useSeo({ title, description, path, image, jsonLd, noIndex }: Seo
     upsertMeta("property", "og:type", "website");
     upsertMeta("property", "og:site_name", "ویلاسنتو | VillaSento");
     upsertMeta("property", "og:locale", "fa_IR");
-    if (image) upsertMeta("property", "og:image", image.startsWith("http") ? image : SITE_URL + image);
+    if (image) upsertMeta("property", "og:image", image.startsWith("http") ? image : siteUrl(image));
     upsertMeta("name", "twitter:card", image ? "summary_large_image" : "summary");
+    upsertMeta("name", "twitter:title", title);
+    if (description) upsertMeta("name", "twitter:description", description);
     upsertJsonLd("vs-jsonld", jsonLd ?? null);
-    return () => upsertJsonLd("vs-jsonld", null);
-  }, [title, description, path, image, jsonLd, noIndex]);
+    for (const extra of jsonLdExtra ?? []) upsertJsonLd(extra.id, extra.data);
+    return () => {
+      upsertJsonLd("vs-jsonld", null);
+      for (const extra of jsonLdExtra ?? []) upsertJsonLd(extra.id, null);
+    };
+  }, [title, description, path, image, jsonLd, noIndex, jsonLdExtra]);
 }
 
-/** Organization JSON-LD for the homepage */
-export function organizationJsonLd(phone: string, address: string) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "RealEstateAgent",
-    name: "ویلاسنتو",
-    alternateName: "VillaSento",
-    url: SITE_URL,
-    telephone: phone,
-    address: { "@type": "PostalAddress", addressCountry: "IR", streetAddress: address },
-  };
-}
-
-/** RealEstateListing JSON-LD for the property page */
-export function listingJsonLd(p: {
-  title: string; description: string; image: string | null;
-  city: string; province: string; lat: number | null; lng: number | null;
-  transactionType: string; salePrice?: number | null; rentAmount?: number | null;
-  code: string; updatedAt?: string | null;
-}) {
-  const offers: Record<string, unknown> = {
-    "@type": "Offer",
-    availability: "https://schema.org/InStock",
-    businessFunction: p.transactionType === "SALE" ? "https://schema.org/Sell" : "https://schema.org/LeaseOut",
-  };
-  if (p.salePrice) offers.price = p.salePrice;
-  else if (p.rentAmount) offers.price = p.rentAmount;
-  if (offers.price) offers.priceCurrency = "IRR";
-  return {
-    "@context": "https://schema.org",
-    "@type": "RealEstateListing",
-    name: p.title,
-    description: p.description.slice(0, 300),
-    url: `${SITE_URL}/#/property/${p.code}`,
-    image: p.image ?? undefined,
-    datePosted: p.updatedAt ?? undefined,
-    address: {
-      "@type": "PostalAddress",
-      addressLocality: p.city,
-      addressRegion: p.province,
-      addressCountry: "IR",
-    },
-    ...(p.lat && p.lng
-      ? { geo: { "@type": "GeoCoordinates", latitude: p.lat, longitude: p.lng } }
-      : {}),
-    offers,
-  };
-}
+// ───────────────────────── JSON-LD builders ─────────────────────────

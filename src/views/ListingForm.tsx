@@ -16,6 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/site/misc";
 import { toast } from "sonner";
 import {
@@ -60,6 +64,7 @@ export function ListingForm({ editId }: { editId?: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
 
   useSeo({ title: editId ? "ویرایش آگهی | ویلاسنتو" : `ثبت آگهی ملک | ${BRAND}`, path: "/new-listing", noIndex: true });
 
@@ -534,13 +539,14 @@ export function ListingForm({ editId }: { editId?: string }) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {form.images.map((url, i) => (
                   <div key={url} className={cn("relative rounded-xl overflow-hidden border-2 group", i === form.mainImage ? "border-primary" : "border-transparent")}>
-                    <img src={url} alt={`تصویر ${faNum(i + 1)}`} className="aspect-[4/3] w-full object-cover" />
+                    { }
+                    <img src={url} alt={`تصویر ${faNum(i + 1)} از آگهی`} loading="lazy" className="aspect-[4/3] w-full object-cover bg-muted" />
                     {i === form.mainImage && (
                       <Badge className="absolute top-1.5 right-1.5 bg-primary text-primary-foreground text-[10px] gap-1">
                         <Star className="h-3 w-3" /> تصویر اصلی
                       </Badge>
                     )}
-                    <div className="absolute bottom-0 inset-x-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 p-1.5">
+                    <div className="absolute bottom-0 inset-x-0 bg-black/55 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center justify-center gap-1 p-1.5">
                       <button className="text-white text-[10px] px-1.5 py-1 rounded bg-white/15 hover:bg-white/25" onClick={() => setForm((f) => ({ ...f, mainImage: i, images: [f.images[i], ...f.images.filter((_, j) => j !== i)] }))} aria-label="انتخاب به‌عنوان اصلی">
                         <Star className="h-3.5 w-3.5 inline" /> اصلی
                       </button>
@@ -549,7 +555,7 @@ export function ListingForm({ editId }: { editId?: string }) {
                           <GripVertical className="h-3.5 w-3.5 inline rotate-90" /> جابجایی
                         </button>
                       )}
-                      <button className="text-red-300 text-[10px] px-1.5 py-1 rounded bg-white/15 hover:bg-red-500/40" onClick={() => setForm((f) => ({ ...f, images: f.images.filter((_, j) => j !== i), mainImage: f.mainImage >= i ? Math.max(0, f.mainImage - (f.mainImage === i ? 1 : 0)) : f.mainImage }))} aria-label="حذف تصویر">
+                      <button className="text-red-300 text-[10px] px-1.5 py-1 rounded bg-white/15 hover:bg-red-500/40" onClick={() => setConfirmDeleteIdx(i)} aria-label="حذف تصویر">
                         <Trash2 className="h-3.5 w-3.5 inline" /> حذف
                       </button>
                     </div>
@@ -693,6 +699,36 @@ export function ListingForm({ editId }: { editId?: string }) {
           )}
         </div>
       </div>
+
+      {/* delete-image confirmation */}
+      <AlertDialog open={confirmDeleteIdx != null} onOpenChange={(v) => { if (!v) setConfirmDeleteIdx(null); }}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف تصویر</AlertDialogTitle>
+            <AlertDialogDescription>
+              این تصویر از آگهی حذف می‌شود. پس از ذخیرهٔ تغییرات، حذف قطعی است. آیا مطمئن هستید؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                const i = confirmDeleteIdx;
+                setConfirmDeleteIdx(null);
+                if (i == null) return;
+                setForm((f) => ({
+                  ...f,
+                  images: f.images.filter((_, j) => j !== i),
+                  mainImage: f.mainImage >= i ? Math.max(0, f.mainImage - (f.mainImage === i ? 1 : 0)) : f.mainImage,
+                }));
+              }}
+            >
+              حذف تصویر
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

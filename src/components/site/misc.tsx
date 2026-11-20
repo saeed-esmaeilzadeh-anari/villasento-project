@@ -8,10 +8,10 @@ import {
   faNum,
 } from "@/lib/fa";
 import { cn } from "@/lib/utils";
-import { useState, useRef } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, X, ImageOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { SmartImage } from "@/components/site/SmartImage";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, X, ImageOff, ZoomIn, ZoomOut, Maximize2, Minimize2 } from "lucide-react";
 
 export function PropertyStatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={cn("border", PROPERTY_STATUS_COLORS[status])}>{PROPERTY_STATUS_LABELS[status] ?? status}</Badge>;
@@ -79,97 +79,291 @@ export function RowSkeleton() {
   );
 }
 
+/**
+ * Professional listing gallery:
+ *  large main stage + thumbnail strip + next/prev + lightbox (keyboard,
+ *  fullscreen, zoom, swipe, counter) + skeleton + error fallback.
+ * RTL-aware: «بعدی» (next) lives on the LEFT side with ChevronLeft.
+ */
 export function ImageGallery({ images, title }: { images: string[]; title: string }) {
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
-  const [broken, setBroken] = useState<Record<number, boolean>>({});
-  const touchX = useRef<number | null>(null);
+  const list = (images ?? []).filter(Boolean);
 
-  if (!images?.length) {
-    return <div className="aspect-[2/1] rounded-2xl bg-muted grid place-items-center text-muted-foreground">تصویری ثبت نشده</div>;
+  if (!list.length) {
+    return (
+      <div className="aspect-[16/10] rounded-2xl bg-muted grid place-items-center text-muted-foreground gap-1">
+        <ImageOff className="h-8 w-8 opacity-50" />
+        <span className="text-xs">تصویری برای این آگهی ثبت نشده است</span>
+      </div>
+    );
   }
-
-  const next = () => setIdx((i) => (i + 1) % images.length);
-  const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
-
-  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0]?.clientX ?? null; };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchX.current == null) return;
-    const dx = (e.changedTouches[0]?.clientX ?? touchX.current) - touchX.current;
-    touchX.current = null;
-    if (Math.abs(dx) > 40) { if (dx < 0) next(); else prev(); } // swipe left→next, right→prev
-  };
-
-  const fallback = (
-    <div className="w-full h-full grid place-items-center bg-muted text-muted-foreground text-xs gap-1">
-      <ImageOff className="h-6 w-6 opacity-50" />
-      <span>تصویر در دسترس نیست</span>
-    </div>
-  );
 
   return (
     <>
-      <div className="grid grid-cols-4 grid-rows-2 gap-2 h-64 md:h-96 rounded-2xl overflow-hidden">
-        {images.slice(0, 5).map((src, i) => (
-          <button
-            key={i}
-            onClick={() => { setIdx(i); setOpen(true); }}
-            className={cn("relative overflow-hidden group bg-muted", i === 0 ? "col-span-2 row-span-2" : "hidden md:block")}
-            aria-label={`تصویر ${faNum(i + 1)}`}
-          >
-            {broken[i] ? fallback : (
-              <img
-                src={src}
-                alt={`${title} — تصویر ${faNum(i + 1)}`}
-                loading={i === 0 ? "eager" : "lazy"}
-                decoding="async"
-                onError={() => setBroken((b) => ({ ...b, [i]: true }))}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-            )}
-            {i === 4 && images.length > 5 && (
-              <span className="absolute inset-0 bg-black/55 text-white grid place-items-center text-sm font-bold">
-                + {faNum(images.length - 5)} تصویر دیگر
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {/* ── main stage ── */}
+      <GalleryStage list={list} title={title} idx={idx} setIdx={setIdx} onExpand={() => { setIdx(idx); setOpen(true); }} />
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] p-2" dir="rtl">
-          <DialogTitle className="sr-only">گالری تصاویر {title}</DialogTitle>
-          <div className="relative" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-            {broken[idx] ? (
-              <div className="w-full aspect-video">{fallback}</div>
-            ) : (
-              <img
-                src={images[idx]}
-                alt={`${title} — تصویر ${faNum(idx + 1)}`}
-                onError={() => setBroken((b) => ({ ...b, [idx]: true }))}
-                className="w-full max-h-[70vh] object-contain rounded-lg bg-muted select-none touch-pan-y"
-                draggable={false}
-              />
-            )}
-            <Button size="icon" variant="secondary" className="absolute top-2 left-2" onClick={() => setOpen(false)} aria-label="بستن">
-              <X className="h-4 w-4" />
-            </Button>
-            {images.length > 1 && (
-              <>
-                <Button size="icon" variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={prev} aria-label="تصویر قبلی">
-                  <ChevronRight className="h-5 w-5" />
-                </Button>
-                <Button size="icon" variant="secondary" className="absolute left-2 top-1/2 -translate-y-1/2" onClick={next} aria-label="تصویر بعدی">
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-              </>
-            )}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 text-white text-xs px-3 py-1">
-              {faNum(idx + 1)} از {faNum(images.length)}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* ── thumbnail strip ── */}
+      {list.length > 1 && (
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-thin" role="tablist" aria-label="تصاویر آگهی">
+          {list.map((src, i) => (
+            <button
+              key={i}
+              role="tab"
+              aria-selected={i === idx}
+              aria-label={`تصویر ${faNum(i + 1)}`}
+              onClick={() => setIdx(i)}
+              className={cn(
+                "relative shrink-0 w-20 h-16 md:w-24 md:h-[4.5rem] rounded-xl overflow-hidden bg-muted transition-all",
+                i === idx ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "opacity-70 hover:opacity-100"
+              )}
+            >
+              <SmartImage src={src} alt={`${title} — تصویر ${faNum(i + 1)}`} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── lightbox ── */}
+      {open && (
+        <Lightbox
+          list={list}
+          title={title}
+          idx={idx}
+          onClose={() => setOpen(false)}
+          onNav={(i) => setIdx(((i % list.length) + list.length) % list.length)}
+        />
+      )}
     </>
+  );
+}
+
+/** Main stage: big image + overlay arrows + counter + expand button */
+function GalleryStage({ list, title, idx, setIdx, onExpand }: {
+  list: string[]; title: string; idx: number;
+  setIdx: (i: number) => void; onExpand: () => void;
+}) {
+  const many = list.length > 1;
+  return (
+    <div className="relative aspect-[16/10] md:aspect-[16/9] rounded-2xl overflow-hidden bg-muted group/stage">
+      <SmartImage key={idx} src={list[idx]} alt={`${title} — تصویر ${faNum(idx + 1)}`} eager={idx === 0} />
+
+      {many && (
+        <>
+          <NavBtn side="next" onClick={() => setIdx((idx + 1) % list.length)} />
+          <NavBtn side="prev" onClick={() => setIdx((idx - 1 + list.length) % list.length)} />
+        </>
+      )}
+
+      {/* counter */}
+      <span className="absolute bottom-3 right-3 rounded-full bg-black/60 backdrop-blur text-white text-[11px] px-3 py-1 pointer-events-none">
+        {faNum(idx + 1)} / {faNum(list.length)}
+      </span>
+
+      {/* expand */}
+      <button
+        onClick={onExpand}
+        aria-label="نمایش تمام‌صفحه تصاویر"
+        className="absolute top-3 left-3 rounded-full bg-black/55 backdrop-blur text-white p-2 opacity-0 group-hover/stage:opacity-100 focus-visible:opacity-100 transition-opacity"
+      >
+        <Maximize2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Circular overlay navigation button (RTL: next = left side) */
+function NavBtn({ side, onClick }: { side: "next" | "prev"; onClick: () => void }) {
+  const isNext = side === "next";
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      aria-label={isNext ? "تصویر بعدی" : "تصویر قبلی"}
+      className={cn(
+        "absolute top-1/2 -translate-y-1/2 rounded-full bg-black/55 backdrop-blur text-white p-2.5",
+        "opacity-0 group-hover/stage:opacity-100 focus-visible:opacity-100 transition-all hover:bg-black/75 active:scale-95",
+        isNext ? "left-3" : "right-3"
+      )}
+    >
+      {isNext ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+    </button>
+  );
+}
+
+/** Full lightbox: keyboard, fullscreen, zoom, swipe, counter, thumbnails */
+function Lightbox({ list, title, idx, onClose, onNav }: {
+  list: string[]; title: string; idx: number;
+  onClose: () => void; onNav: (i: number) => void;
+}) {
+  const [zoomed, setZoomed] = useState(false);
+  const [fs, setFs] = useState(false);
+  const [dir, setDir] = useState(1); // 1 = forward
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const touchX = useRef<number | null>(null);
+  const many = list.length > 1;
+
+  const go = useCallback((delta: number) => {
+    setDir(delta > 0 ? 1 : -1);
+    setZoomed(false);
+    onNav(idx + delta);
+  }, [idx, onNav]);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await shellRef.current?.requestFullscreen();
+        setFs(true);
+      } else {
+        await document.exitFullscreen();
+        setFs(false);
+      }
+    } catch { /* denied */ }
+  }, []);
+
+  // keyboard navigation + scroll lock
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") { if (many) go(1); }
+      else if (e.key === "ArrowRight") { if (many) go(-1); }
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+  }, [go, onClose, many]);
+
+  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0]?.clientX ?? null; };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchX.current == null || !many) return;
+    const dx = (e.changedTouches[0]?.clientX ?? touchX.current) - touchX.current;
+    touchX.current = null;
+    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); // swipe left → next (RTL image flow)
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        ref={shellRef}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`گالری تصاویر ${title}`}
+        dir="rtl"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* top bar */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 text-white/90 shrink-0">
+          <div className="text-xs sm:text-sm font-bold truncate">
+            <span className="opacity-80">{title}</span>
+            <span className="mx-2 opacity-50">|</span>
+            <span className="tabular-nums">{faNum(idx + 1)} از {faNum(list.length)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setZoomed((z) => !z)}
+              aria-label={zoomed ? "کوچک‌نمایی" : "بزرگ‌نمایی"}
+              className="rounded-full p-2.5 hover:bg-white/10 transition-colors"
+            >
+              {zoomed ? <ZoomOut className="h-5 w-5" /> : <ZoomIn className="h-5 w-5" />}
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              aria-label={fs ? "خروج از تمام‌صفحه" : "نمایش تمام‌صفحه"}
+              className="rounded-full p-2.5 hover:bg-white/10 transition-colors"
+            >
+              {fs ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+            </button>
+            <button onClick={onClose} aria-label="بستن" className="rounded-full p-2.5 hover:bg-white/10 transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* stage */}
+        <div className="relative flex-1 min-h-0 grid place-items-center px-3 pb-2">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, x: dir > 0 ? -40 : 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: dir > 0 ? 40 : -40 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className={cn(
+                "max-w-full max-h-full w-auto h-full grid place-items-center",
+                zoomed ? "cursor-zoom-out overflow-auto" : "cursor-zoom-in"
+              )}
+              onClick={() => setZoomed((z) => !z)}
+            >
+              <motion.img
+                src={list[idx]}
+                alt={`${title} — تصویر ${faNum(idx + 1)}`}
+                draggable={false}
+                animate={{ scale: zoomed ? 1.9 : 1 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className={cn(
+                  "max-w-full max-h-full object-contain rounded-lg select-none",
+                  zoomed && "origin-center"
+                )}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).outerHTML =
+                    '<div class="text-white/60 text-sm grid place-items-center gap-2 py-10" role="img">تصویر در دسترس نیست</div>';
+                }}
+              />
+            </motion.div>
+          </AnimatePresence>
+
+          {many && (
+            <>
+              <button
+                onClick={() => go(1)}
+                aria-label="تصویر بعدی"
+                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 hover:bg-white/25 text-white p-3 backdrop-blur transition-colors active:scale-95"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={() => go(-1)}
+                aria-label="تصویر قبلی"
+                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 hover:bg-white/25 text-white p-3 backdrop-blur transition-colors active:scale-95"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* lightbox thumbnails */}
+        {many && (
+          <div className="shrink-0 flex gap-2 overflow-x-auto px-3 pb-3 scrollbar-thin">
+            {list.map((src, i) => (
+              <button
+                key={i}
+                aria-label={`تصویر ${faNum(i + 1)}`}
+                aria-current={i === idx}
+                onClick={() => { setDir(i > idx ? 1 : -1); setZoomed(false); onNav(i); }}
+                className={cn(
+                  "shrink-0 w-16 h-12 rounded-lg overflow-hidden bg-white/10 transition-all",
+                  i === idx ? "ring-2 ring-white" : "opacity-60 hover:opacity-100"
+                )}
+              >
+                { }
+                <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -6,8 +6,10 @@ import { api, type PropertyDetailT, type Lookups } from "@/lib/api";
 import { Link, navigate } from "@/lib/router";
 import { useAuth, useCompare, useHistory } from "@/lib/store";
 import { useSeo, listingJsonLd } from "@/lib/seo";
+import { listingSeoTitle, listingSeoDescription } from "@/lib/seoTitles";
 import { faNum, faDateTime, priceLine, shortMoney, TRANSACTION_TYPE_LABELS, PROPERTY_TYPE_LABELS, DOCUMENT_STATUS_LABELS, CONTACT_PREF_LABELS, REPORT_REASONS, BRAND } from "@/lib/fa";
 import { ImageGallery, PropertyStatusBadge } from "@/components/site/misc";
+import { SmartImage } from "@/components/site/SmartImage";
 import { MapView } from "@/components/site/MapView";
 import { PropertyCard } from "@/components/site/PropertyCard";
 import { Button } from "@/components/ui/button";
@@ -25,14 +27,13 @@ import {
   FileCheck2, Landmark, Star, ChevronLeft, Handshake, UserRound,
 } from "lucide-react";
 
-export function PropertyView({ idOverride }: { idOverride?: string }) {
+export function PropertyView({ idOverride, initialData, suppressJsonLd }: { idOverride?: string; initialData?: PropertyDetailT; suppressJsonLd?: boolean }) {
   const id = idOverride ?? (typeof window !== "undefined" ? window.location.hash.split("/")[2]?.split("?")[0] : "");
   const { me, openAuth } = useAuth();
   const qc = useQueryClient();
   const compare = useCompare();
   const pushHistory = useHistory((s) => s.push);
 
-  const [imgOpen, setImgOpen] = useState(false);
   const [visitOpen, setVisitOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [msgOpen, setMsgOpen] = useState(false);
@@ -42,6 +43,7 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
     queryKey: ["property", id],
     queryFn: () => api.get<PropertyDetailT>(`/api/properties/${id}`),
     enabled: !!id,
+    initialData,
   });
 
   const { data: lookups } = useQuery({
@@ -62,11 +64,11 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
   const isOwnerOrAgent = !!me && (me.id === p?.hostId || me.id === p?.agentId);
 
   useSeo({
-    title: p ? `${p.title} | ${BRAND}` : "جزئیات ملک | ویلاسنتو",
-    description: p ? `${priceLine(p.transactionType, p.salePrice, p.rahnAmount, p.rentAmount)} — ${p.province}، ${p.city}${p.area ? "، " + p.area : ""} — ${p.buildArea ? faNum(p.buildArea) + " متر بنا، " : ""}${p.landArea ? faNum(p.landArea) + " متر زمین" : ""}` : undefined,
-    path: `/property/${id}`,
+    title: p ? `${listingSeoTitle(p)} | ${BRAND}` : "جزئیات ملک | ویلاسنتو",
+    description: p ? listingSeoDescription(p) : undefined,
+    path: p?.slug ? `/property/${p.slug}` : `/property/${id}`,
     image: p?.image ?? null,
-    jsonLd: p ? listingJsonLd(p) : null,
+    jsonLd: p && !suppressJsonLd ? listingJsonLd(p) : null,
     noIndex: p ? p.status !== "PUBLISHED" : false,
   });
 
@@ -106,7 +108,7 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
     );
   }
 
-  const shareUrl = window.location.href;
+  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const shareText = `${p.title} — ${priceLine(p.transactionType, p.salePrice, p.rahnAmount, p.rentAmount)}`;
 
   return (
@@ -181,17 +183,8 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* main */}
         <div className="lg:col-span-2 space-y-6 min-w-0">
-          {/* gallery */}
-          <div
-            className="cursor-zoom-in"
-            onClick={() => setImgOpen(true)}
-            role="button"
-            tabIndex={0}
-            aria-label="نمایش تمام‌صفحه تصاویر"
-            onKeyDown={(e) => { if (e.key === "Enter") setImgOpen(true); }}
-          >
-            <ImageGallery images={p.images} title={p.title} />
-          </div>
+          {/* gallery (built-in lightbox: keyboard / fullscreen / zoom / swipe) */}
+          <ImageGallery images={p.images} title={p.title} />
           {p.videoUrl && (
             <div className="space-y-2">
               <video
@@ -256,7 +249,7 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
               <h2 className="font-black text-sm mb-4">امکانات و ویژگی‌ها</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 text-sm">
                 {p.allAmenities.map((a) => (
-                  <div key={a.id} className="flex items-center gap-2 text-foreground/90">
+                  <div key={a.id ?? a.key} className="flex items-center gap-2 text-foreground/90">
                     <BadgeCheck className="h-4 w-4 text-teal-600 shrink-0" /> {a.name}
                   </div>
                 ))}
@@ -287,7 +280,9 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
           <div className="rounded-2xl border bg-card p-5 lg:sticky lg:top-20">
             <div className="flex items-center gap-3">
               <span className="w-12 h-12 rounded-full bg-primary/10 text-primary grid place-items-center font-black overflow-hidden shrink-0">
-                {p.owner.photo ? <img src={p.owner.photo} alt={p.owner.name} className="h-full w-full object-cover" /> : p.owner.name.slice(0, 1)}
+                {p.owner.photo
+                  ? <SmartImage src={p.owner.photo} alt={p.owner.name} className="h-full w-full" />
+                  : p.owner.name.slice(0, 1)}
               </span>
               <div className="min-w-0">
                 <div className="font-bold text-sm flex items-center gap-1.5">
@@ -342,7 +337,7 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
                 {p.similar.slice(0, 4).map((s) => (
                   <Link key={s.id} to={`/property/${s.id}`} className="flex gap-3 group">
                     <span className="w-16 h-14 rounded-lg bg-muted overflow-hidden shrink-0">
-                      {s.image && <img src={s.image} alt={s.title} loading="lazy" className="h-full w-full object-cover" />}
+                      <SmartImage src={s.image} alt={s.title} />
                     </span>
                     <span className="min-w-0">
                       <span className="text-xs font-bold line-clamp-1 group-hover:text-primary transition-colors">{s.title}</span>
@@ -356,18 +351,6 @@ export function PropertyView({ idOverride }: { idOverride?: string }) {
           )}
         </aside>
       </div>
-
-      {/* image lightbox via gallery component (reuse) */}
-      <Dialog open={imgOpen} onOpenChange={setImgOpen}>
-        <DialogContent className="max-w-5xl p-0 overflow-hidden" dir="rtl">
-          <DialogTitle className="sr-only">تصاویر {p.title}</DialogTitle>
-          <div className="max-h-[85vh] overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-1">
-            {p.images.map((src, i) => (
-              <img key={i} src={src} alt={`${p.title} — تصویر ${faNum(i + 1)}`} className="w-full h-40 md:h-52 object-cover" />
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* visit request dialog */}
       <VisitDialog open={visitOpen} onOpenChange={setVisitOpen} property={p} />

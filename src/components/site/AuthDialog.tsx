@@ -28,12 +28,11 @@ export function AuthDialog() {
   const [newPassword2, setNewPassword2] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [code, setCode] = useState("");
-  const [demoCode, setDemoCode] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const reset = () => {
-    setMode("password"); setStep("start"); setCode(""); setDemoCode(null);
+    setMode("password"); setStep("start"); setCode("");
     setIsNew(false); setBusy(false); setPassword(""); setPassword2("");
     setNewPassword(""); setNewPassword2(""); setName("");
   };
@@ -41,11 +40,11 @@ export function AuthDialog() {
   const requestOtp = async (target?: string) => {
     setBusy(true);
     try {
-      const res = await api.post<{ isNewUser: boolean; demoCode?: string }>("/api/auth/request-otp", { phone: target ?? phone });
+      // SECURITY: the OTP code is never returned by the API (server-side only)
+      const res = await api.post<{ isNewUser: boolean }>('/api/auth/request-otp', { phone: target ?? phone });
       setIsNew(res.isNewUser);
-      setDemoCode(res.demoCode ?? null);
       setStep("code");
-      toast.success("کد تأیید ارسال شد" + (res.demoCode ? ` (کد نمایشی: ${faNum(res.demoCode)})` : ""));
+      toast.success("کد تأیید ارسال شد");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -160,7 +159,7 @@ export function AuthDialog() {
             {mode === "forced-change"
               ? "برای امنیت حساب، ابتدا رمز عبور اولیه را با یک رمز شخصی جایگزین کنید"
               : authReason ?? (mode === "forgot"
-                ? "کد تأیید نمایشی و رمز جدید را وارد کنید"
+                ? "کد تأیید و رمز جدید را وارد کنید"
                 : mode === "register"
                 ? "با شماره موبایل و رمز عبور، حساب بسازید (بدون نیاز به کد تأیید)"
                 : "با شماره موبایل و رمز عبور وارد شوید")}
@@ -284,6 +283,9 @@ export function AuthDialog() {
                 <Button className="w-full" disabled={busy || !phone} onClick={() => requestOtp()}>
                   {busy && <Loader2 className="h-4 w-4 animate-spin ml-1" />} دریافت کد تأیید
                 </Button>
+                <p className="text-[10px] text-muted-foreground leading-5">
+                  اگر پیامک متصل نیست، از تب «ورود» با رمز عبور استفاده کنید.
+                </p>
               </>
             )}
           </div>
@@ -291,15 +293,10 @@ export function AuthDialog() {
 
         {(mode === "otp" || mode === "forgot") && step === "code" && (
           <div className="space-y-3">
-            <Button variant="ghost" size="sm" className="p-0 h-8" onClick={() => { setStep("start"); setCode(""); setDemoCode(null); }}>
+            <Button variant="ghost" size="sm" className="p-0 h-8" onClick={() => { setStep("start"); setCode(""); }}>
               <ArrowRight className="h-4 w-4 ml-1" /> تغییر شماره
             </Button>
             <p className="text-sm text-muted-foreground">کد ارسال‌شده به {faNum(phone)} را وارد کنید</p>
-            {demoCode && (
-              <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-primary">
-                حالت نمایشی — کد تأیید: <b className="font-black tracking-widest">{faNum(demoCode)}</b>
-              </div>
-            )}
             <div className="flex justify-center" dir="ltr">
               <InputOTP maxLength={5} value={code} onChange={setCode}>
                 <InputOTPGroup>

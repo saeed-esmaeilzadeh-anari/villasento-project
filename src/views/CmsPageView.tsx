@@ -15,13 +15,17 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Mail, Send } from "lucide-react";
 
-export function CmsPageView({ slugOverride }: { slugOverride?: string }) {
+export type CmsPageT = { slug: string; title: string; content: string; category: string; updatedAt: string | Date };
+
+export function CmsPageView({ slugOverride, initialData }: { slugOverride?: string; initialData?: CmsPageT | null }) {
   const route = useRoute();
   const slug = slugOverride ?? route.path.split("/")[2] ?? "about";
 
   const { data: page, isLoading } = useQuery({
     queryKey: ["cms", slug],
-    queryFn: () => api.get<{ slug: string; title: string; content: string; category: string; updatedAt: string } | null>(`/api/cms/${slug}`),
+    queryFn: () => api.get<CmsPageT | null>(`/api/cms/${slug}`),
+    initialData,
+    staleTime: 60 * 1000,
   });
 
   useSeo({

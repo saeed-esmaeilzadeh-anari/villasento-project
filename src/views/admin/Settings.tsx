@@ -13,14 +13,14 @@ import { toast } from "sonner";
 
 type SettingsMap = Record<string, string>;
 
-const GROUPS: { title: string; keys: { key: string; label: string; type?: "text" | "textarea" | "number"; ltr?: boolean }[] }[] = [
+const GROUPS: { title: string; keys: { key: string; label: string; type?: "text" | "textarea" | "number" | "bool"; ltr?: boolean; hint?: string }[] }[] = [
   {
-    title: "هویت برند و اطلاعات مجموعه",
+    title: "عمومی و هویت برند",
     keys: [
       { key: "site.name", label: "نام سامانه" },
-      { key: "site.nameEn", label: "نام لاتین" },
+      { key: "site.nameEn", label: "نام لاتین", ltr: true },
       { key: "site.tagline", label: "شعار (تگ‌لاین)", type: "textarea" },
-      { key: "site.supportPhone", label: "تلفن پشتیبانی" },
+      { key: "site.supportPhone", label: "تلفن رسمی پشتیبانی", ltr: true, hint: "در هدر، فوتر، CTAها و صفحه تماس با لینک تماس (tel:) نمایش داده می‌شود" },
       { key: "site.email", label: "ایمیل", ltr: true },
       { key: "site.address", label: "نشانی" },
       { key: "site.workingHours", label: "ساعات کاری" },
@@ -29,8 +29,19 @@ const GROUPS: { title: string; keys: { key: string; label: string; type?: "text"
   {
     title: "سئو",
     keys: [
-      { key: "seo.defaultTitle", label: "عنوان پیش‌فرض صفحات" },
+      { key: "seo.defaultTitle", label: "عنوان پیش‌فرض صفحات", hint: "خالی = عنوان استاندارد ویلاسنتو" },
       { key: "seo.defaultDescription", label: "توضیحات پیش‌فرض (Meta Description)", type: "textarea" },
+      { key: "seo.keywords", label: "کلمات کلیدی (با کاما جدا کنید)", type: "textarea" },
+      { key: "seo.googleVerification", label: "کد تأیید Google Search Console", ltr: true },
+      { key: "seo.ogImage", label: "تصویر پیش‌فرض OG (مسیر یا URL)", ltr: true },
+    ],
+  },
+  {
+    title: "تماس و شبکه‌های اجتماعی",
+    keys: [
+      { key: "site.whatsapp", label: "واتس‌اپ (لینک کامل)", ltr: true, hint: "فقط در صورت داشتن شماره واقعی پر شود" },
+      { key: "site.telegram", label: "تلگرام (لینک کامل)", ltr: true },
+      { key: "site.instagram", label: "اینستاگرام (لینک کامل)", ltr: true },
     ],
   },
   {
@@ -38,6 +49,10 @@ const GROUPS: { title: string; keys: { key: string; label: string; type?: "text"
     keys: [
       { key: "listing.validityDays", label: "مدت اعتبار آگهی (روز)", type: "number", ltr: true },
       { key: "listing.maxImages", label: "حداکثر تصویر هر آگهی", type: "number", ltr: true },
+      { key: "listing.pageSize", label: "تعداد آگهی در هر صفحه جستجو", type: "number", ltr: true },
+      { key: "listing.requireApproval", label: "تأیید آگهی پیش از انتشار (true/false)", ltr: true, hint: "false = آگهی‌ها پس از ثبت بلافاصله منتشر می‌شوند" },
+      { key: "listing.showPhone", label: "نمایش شماره تماس ثبت‌کننده (true/false)", ltr: true, hint: "false = شماره رسمی پشتیبانی به‌جای شماره مالک/مشاور نمایش داده می‌شود" },
+      { key: "listing.featuredEnabled", label: "آگهی ویژه فعال (true/false)", ltr: true },
     ],
   },
   {
@@ -51,16 +66,37 @@ const GROUPS: { title: string; keys: { key: string; label: string; type?: "text"
   {
     title: "پیامک و ایمیل",
     keys: [
-      { key: "sms.demoMode", label: "حالت نمایشی پیامک (true/false)", ltr: true },
+      { key: "sms.demoMode", label: "حالت نمایشی پیامک (true/false)", ltr: true, hint: "در حالت نمایشی، کد OTP فقط در لاگ سرور ثبت می‌شود و هرگز به مرورگر ارسال نمی‌شود" },
       { key: "sms.provider", label: "سرویس‌دهنده پیامک (kavenegar/smsir — خالی = غیرفعال)", ltr: true },
       { key: "sms.apiKey", label: "کلید API پیامک", ltr: true },
       { key: "email.smtpConfigured", label: "ایمیل SMTP فعال (true/false)", ltr: true },
     ],
   },
   {
+    title: "اعلان‌ها",
+    keys: [
+      { key: "notify.adminNewListing", label: "اعلان آگهی جدید به مدیران (true/false)", ltr: true },
+      { key: "notify.listingStatus", label: "اعلان تغییر وضعیت آگهی به مالک (true/false)", ltr: true },
+    ],
+  },
+  {
+    title: "امنیت",
+    keys: [
+      { key: "security.sessionMaxAgeDays", label: "طول عمر نشست (روز)", type: "number", ltr: true },
+      { key: "security.passwordMinLength", label: "حداقل طول رمز عبور", type: "number", ltr: true },
+    ],
+  },
+  {
     title: "آپلود",
     keys: [
       { key: "upload.maxSizeMB", label: "حداکثر حجم تصویر (مگابایت)", type: "number", ltr: true },
+      { key: "upload.videoMaxSizeMB", label: "حداکثر حجم ویدیو (مگابایت)", type: "number", ltr: true },
+    ],
+  },
+  {
+    title: "حالت نمایشی (Demo)",
+    keys: [
+      { key: "site.demoMode", label: "حالت نمایشی سایت (true/false)", ltr: true, hint: "با متغیر محیطی DEMO_MODE=true/false نیز کنترل می‌شود؛ در Production به‌صورت پیش‌فرض خاموش است" },
     ],
   },
 ];
@@ -115,6 +151,7 @@ export function SettingsSection() {
                     onChange={(e) => setValues((v) => ({ ...v, [k.key]: e.target.value }))}
                   />
                 )}
+                {k.hint && <p className="text-[10px] text-muted-foreground leading-4">{k.hint}</p>}
               </div>
             ))}
           </div>

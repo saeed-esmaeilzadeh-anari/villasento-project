@@ -2,14 +2,14 @@ import { handler, ok } from "@/server/http";
 import { db } from "@/lib/db";
 import * as Content from "@/server/services/content";
 import { searchProperties } from "@/server/services/properties";
-import { getAllSettings } from "@/server/settings";
+import { getAllSettings, getSetting } from "@/server/settings";
 
 /**
  * GET /api/home — one aggregated call for the homepage:
  * latest, featured, most-viewed, category counts, banners, articles, faqs, stats, settings
  */
 export const GET = handler(async () => {
-  const [latest, featured, mostViewed, banners, articles, faqs, settings, byType, byTT] = await Promise.all([
+  const [latest, featured, mostViewed, banners, articles, faqs, settings, byType, byTT, cities, demoRaw] = await Promise.all([
     searchProperties({ sort: "NEWEST", pageSize: 8 }),
     searchProperties({ featuredOnly: true, sort: "NEWEST", pageSize: 6 }),
     searchProperties({ sort: "MOST_VIEWED", pageSize: 6 }),
@@ -19,7 +19,16 @@ export const GET = handler(async () => {
     getAllSettings(),
     db.$queryRaw<{ type: string; cnt: number }[]>`SELECT type as type, COUNT(*) as cnt FROM Property WHERE status = 'PUBLISHED' GROUP BY type`.catch(() => []),
     db.$queryRaw<{ transactionType: string; cnt: number }[]>`SELECT transactionType as transactionType, COUNT(*) as cnt FROM Property WHERE status = 'PUBLISHED' GROUP BY transactionType`.catch(() => []),
+    db.$queryRaw<{ name: string; cnt: number }[]>`SELECT c.name as name, COUNT(*) as cnt FROM Property p JOIN City c ON c.id = p.cityId WHERE p.status = 'PUBLISHED' GROUP BY c.name ORDER BY cnt DESC LIMIT 12`.catch(() => []),
+    getSetting("site.demoMode"),
   ]);
+
+  // DEMO_MODE: env flag wins; otherwise on in non-production runtime by default
+  const demoMode = process.env.DEMO_MODE === "true"
+    ? true
+    : process.env.DEMO_MODE === "false"
+      ? false
+      : process.env.NODE_ENV !== "production" && demoRaw !== "false";
 
   let social: { label: string; url: string }[] = [];
   try { social = JSON.parse(settings["site.social"] ?? "[]"); } catch { /* noop */ }
@@ -35,6 +44,8 @@ export const GET = handler(async () => {
     faqs,
     byType: byType.map((r) => ({ type: r.type, count: Number(r.cnt) })),
     byTransactionType: byTT.map((r) => ({ tt: r.transactionType, count: Number(r.cnt) })),
+    cities: cities.map((r) => ({ name: r.name, count: Number(r.cnt) })),
+    demoMode,
     stats,
     social,
     site: {

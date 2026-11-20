@@ -137,10 +137,13 @@ export function SearchView() {
     placeholderData: keepPreviousData,
   });
 
+  // Search results pages are filtered/dynamic views → keep out of the index
+  // (the SEO landing pages under /l/... and /city/... carry the rankings)
   useSeo({
     title: "جستجوی املاک | ویلاسنتو",
     description: "جستجو و فیلتر آگهی‌های فروش، رهن و اجاره باغ، ویلا، باغ‌ویلا و املاک مسکونی با فیلترهای قیمت، متراژ و امکانات.",
     path: "/search",
+    noIndex: true,
   });
 
   const province = lookups?.provinces.find((p) => p.id === filters.provinceId);

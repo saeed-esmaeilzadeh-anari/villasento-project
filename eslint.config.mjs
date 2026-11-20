@@ -48,7 +48,8 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // (NestJS backend compiles to CommonJS in dist/ — Next.js lint rules don't apply)
   ignores: [
     "node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts",
-    "examples/**", "skills",
+    "examples/**", "skills", "work/**", "tool-results/**", "upload/**",
+    "download/**", "tests/**", "db/**", "uploads/**",
     "mini-services/**",
   ]
 }];

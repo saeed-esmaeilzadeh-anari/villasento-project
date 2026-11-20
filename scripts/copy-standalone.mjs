@@ -4,7 +4,7 @@
  * Run automatically after `next build`:
  *   node scripts/copy-standalone.mjs
  *
- * Adds Next.js static assets, public/, .env.local and db/ to .next/standalone,
+ * Adds Next.js static assets, public/, .env and db/ to .next/standalone,
  * then merges the standalone runtime into the cPanel application root.
  * Existing runtime data in the deployment root is preserved.
  */
@@ -17,8 +17,8 @@ const standaloneDir = path.join(projectRoot, '.next', 'standalone');
 const staticDir = path.join(projectRoot, '.next', 'static');
 const publicDir = path.join(projectRoot, 'public');
 
-// Use .env.local as the environment source.
-const envFile = path.join(projectRoot, '.env.local');
+// Use .env as the environment source.
+const envFile = path.join(projectRoot, '.env');
 
 const dbDir = path.join(projectRoot, 'db');
 
@@ -28,7 +28,7 @@ const deployDir = process.env.STANDALONE_DEPLOY_DIR
 
 // Keep persistent files already present in the cPanel application root.
 const preservedNames = new Set([
-  '.env.local',
+  '.env',
   'db',
   'uploads',
   'tmp',
@@ -98,10 +98,10 @@ async function main() {
   // Include environment configuration and SQLite data
   // in the standalone folder.
   //
-  // The environment configuration is copied from .env.local.
+  // The environment configuration is copied from .env.
   const standaloneEnv = path.join(
     standaloneDir,
-    '.env.local',
+    '.env',
   );
 
   const standaloneDb = path.join(
@@ -115,7 +115,7 @@ async function main() {
     );
   } else {
     console.warn(
-      `WARNING: root .env.local was not found: ${envFile}`,
+      `WARNING: root .env was not found: ${envFile}`,
     );
   }
 
@@ -131,7 +131,7 @@ async function main() {
 
   // Merge standalone runtime into the cPanel application root.
   //
-  // .env.local, db/, uploads/ and tmp/
+  // .env, db/, uploads/ and tmp/
   // already in the destination are not overwritten.
   await fs.mkdir(deployDir, { recursive: true });
 
@@ -175,7 +175,7 @@ async function main() {
   ) {
     const deployEnv = path.join(
       deployDir,
-      '.env.local',
+      '.env',
     );
 
     const deployDb = path.join(
@@ -260,7 +260,7 @@ async function main() {
   );
 
   console.log(
-    `Standalone .env.local: ${
+    `Standalone .env: ${
       (await exists(standaloneEnv))
         ? 'included'
         : 'MISSING'
@@ -280,7 +280,7 @@ async function main() {
   );
 
   console.log(
-    'Existing deployment-root .env.local, db/, uploads/ and tmp/ were preserved.',
+    'Existing deployment-root .env, db/, uploads/ and tmp/ were preserved.',
   );
 }
 

@@ -42,8 +42,8 @@ export function needsRehash(stored: string | null): boolean {
   return !!stored && !stored.startsWith("$2");
 }
 
-export function passwordPolicyError(pw: string): string | null {
-  if (!pw || pw.length < 6) return "رمز عبور باید حداقل ۶ نویسه باشد";
+export function passwordPolicyError(pw: string, minLength = 6): string | null {
+  if (!pw || pw.length < minLength) return `رمز عبور باید حداقل ${minLength} نویسه باشد`;
   if (pw.length > 72) return "رمز عبور حداکثر ۷۲ نویسه است";
   if (!/^[!-~\u0600-\u06FF ]+$/.test(pw)) return "رمز عبور شامل نویسه‌های مجاز نیست";
   return null;

@@ -12,7 +12,7 @@ import { forbidden, unauthorized } from "./http";
 // Cookie name is env-configurable; the NestJS backend MUST use the same
 // value (SESSION_COOKIE_NAME) for the shared-session SSO to work.
 const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "villasento_session";
-const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+const DEFAULT_MAX_AGE = 60 * 60 * 24 * 30; // 30 days (security.sessionMaxAgeDays setting overrides)
 
 function secret(): string {
   const configured = process.env.AUTH_SECRET?.trim();
@@ -57,14 +57,20 @@ function decode(token: string): SessionPayload | null {
 }
 
 export async function createSession(userId: string, role: string) {
+  let maxAge = DEFAULT_MAX_AGE;
+  try {
+    const { getSettingNumber } = await import("./settings");
+    const days = await getSettingNumber("security.sessionMaxAgeDays", 30);
+    if (Number.isFinite(days) && days >= 1 && days <= 365) maxAge = Math.round(days * 86400);
+  } catch { /* default lifetime */ }
   const now = Math.floor(Date.now() / 1000);
-  const token = encode({ uid: userId, role, iat: now, exp: now + MAX_AGE });
+  const token = encode({ uid: userId, role, iat: now, exp: now + maxAge });
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: MAX_AGE,
+    maxAge,
     secure: process.env.NODE_ENV === "production",
   });
 }

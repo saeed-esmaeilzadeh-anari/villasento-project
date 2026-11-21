@@ -21,7 +21,7 @@ jobs:
     env:
       DATABASE_URL: file:./db/ci.db
       AUTH_SECRET: ci-only-not-for-production
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: https://www.vilasento.ir
     steps:
       - name: Checkout
         uses: actions/checkout@v4

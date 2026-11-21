@@ -5,8 +5,9 @@ import { searchProperties, type PropertyCardData } from "@/server/services/prope
 import { db } from "@/lib/db";
 import { getLanding, LANDINGS } from "@/lib/landings";
 import { PropertyCard } from "@/components/site/PropertyCard";
-import { breadcrumbJsonLd, faqJsonLd } from "@/lib/seoJson";
+import { breadcrumbJsonLd, faqJsonLd, serializeJsonLd } from "@/lib/seoJson";
 import { PlusCircle, ChevronLeft } from "lucide-react";
+import { landingInventoryCount, MIN_INDEXABLE_LISTINGS } from "@/server/seoIndexability";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -20,11 +21,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const l = getLanding(slug);
   if (!l) return { title: "صفحه یافت نشد", robots: { index: false, follow: false } };
+  const inventoryCount = await landingInventoryCount(l);
   return {
     title: { absolute: l.title },
     description: l.description,
     alternates: { canonical: `/l/${l.slug}` },
-    robots: { index: true, follow: true },
+    robots: { index: inventoryCount >= MIN_INDEXABLE_LISTINGS, follow: true },
     openGraph: { title: l.title, description: l.description, url: `/l/${l.slug}`, type: "website" },
     twitter: { card: "summary_large_image", title: l.title, description: l.description },
   };
@@ -70,12 +72,12 @@ export default async function LandingPage({ params }: Props) {
       <script
         id="vs-jsonld-faq-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(l.faq.map((f) => ({ question: f.q, answer: f.a })))) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd(l.faq.map((f) => ({ question: f.q, answer: f.a })))) }}
       />
       <script
         id="vs-jsonld-breadcrumb-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumb) }}
       />
 
       {/* breadcrumb */}

@@ -2,80 +2,114 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { LANDINGS } from "@/lib/landings";
 import { cityNameToSlug } from "@/server/services/properties";
+import {
+  indexableRegions,
+  isIndexableArticle,
+  isIndexableCmsPage,
+  isValidSitemapSegment,
+  landingInventoryCount,
+  MIN_INDEXABLE_LISTINGS,
+  publishedPropertyWhere,
+} from "@/server/seoIndexability";
+import { siteUrl } from "@/lib/seoJson";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "";
-
-/**
- * Dynamic XML sitemap with CLEAN (crawlable) URLs:
- * home, SEO landing pages, city pages, published listings (slug or id),
- * articles and CMS pages. Rebuilt at most once per hour.
- */
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = SITE_URL || "";
-  const today = new Date();
-
-  const [props, articles, pages, cities, regions] = await Promise.all([
+  const now = new Date();
+  const [properties, articles, pages, cities, regions, landingCounts, cityCounts] = await Promise.all([
     db.property.findMany({
-      where: { status: "PUBLISHED" },
-      select: { id: true, slug: true, updatedAt: true, createdAt: true, city: { select: { name: true } } },
+      where: publishedPropertyWhere(now),
+      select: { slug: true, updatedAt: true },
+      take: 50000,
+      orderBy: { updatedAt: "desc" },
+    }),
+    db.article.findMany({
+      where: { isPublished: true },
+      select: { slug: true, content: true, updatedAt: true },
       take: 5000,
       orderBy: { updatedAt: "desc" },
     }),
-    db.article.findMany({ where: { isPublished: true }, select: { slug: true, updatedAt: true }, take: 1000 }),
-    db.cmsPage.findMany({ where: { isPublished: true }, select: { slug: true, updatedAt: true }, take: 200 }),
-    db.city.findMany({
-      where: { properties: { some: { status: "PUBLISHED" } } },
-      select: { name: true },
-      take: 300,
+    db.cmsPage.findMany({
+      where: { isPublished: true },
+      select: { slug: true, content: true, updatedAt: true },
+      take: 1000,
+      orderBy: { updatedAt: "desc" },
     }),
-    // verified + active region landing pages (real geographic scopes)
-    db.region.findMany({
-      where: { isActive: true, geoStatus: "VERIFIED" },
-      select: { nameEn: true, updatedAt: true },
-      take: 500,
+    db.city.findMany({
+      where: { properties: { some: publishedPropertyWhere(now) } },
+      select: { id: true, name: true },
+      take: 2000,
+      orderBy: { name: "asc" },
+    }),
+    indexableRegions(now),
+    Promise.all(LANDINGS.map(async (landing) => ({
+      slug: landing.slug,
+      count: await landingInventoryCount(landing, now),
+    }))),
+    db.property.groupBy({
+      by: ["cityId"],
+      where: { ...publishedPropertyWhere(now), cityId: { not: null } },
+      _count: { _all: true },
     }),
   ]);
 
-  const urls: MetadataRoute.Sitemap = [
-    { url: `${base}/`, changeFrequency: "daily", priority: 1, lastModified: today },
-  ];
+  const indexableArticleCount = articles.filter((article) => isIndexableArticle(article.content)).length;
+  const entries: MetadataRoute.Sitemap = [{ url: siteUrl("/") }];
+  if (indexableArticleCount >= MIN_INDEXABLE_LISTINGS) entries.push({ url: siteUrl("/articles") });
 
-  // SEO landing pages
-  for (const l of LANDINGS) {
-    urls.push({ url: `${base}/l/${l.slug}`, changeFrequency: "daily", priority: 0.9, lastModified: today });
+  for (const landing of LANDINGS) {
+    const count = landingCounts.find((entry) => entry.slug === landing.slug)?.count ?? 0;
+    if (count >= MIN_INDEXABLE_LISTINGS && isValidSitemapSegment(landing.slug)) {
+      entries.push({ url: siteUrl("/l/" + landing.slug) });
+    }
   }
 
-  // city pages
-  for (const c of cities) {
-    urls.push({ url: `${base}/city/${cityNameToSlug(c.name)}`, changeFrequency: "daily", priority: 0.8, lastModified: today });
+  const cityInventory = new Map(
+    cityCounts.filter((row) => row.cityId).map((row) => [row.cityId!, row._count._all])
+  );
+  for (const city of cities) {
+    const slug = cityNameToSlug(city.name);
+    if (cityInventory.get(city.id)! >= MIN_INDEXABLE_LISTINGS && isValidSitemapSegment(slug)) {
+      entries.push({ url: siteUrl("/city/" + slug) });
+    }
   }
 
-  // region landing pages (جاده سنتو / رضویه / ناظریه / ...)
-  for (const r of regions) {
-    urls.push({ url: `${base}/region/${r.nameEn}`, changeFrequency: "daily", priority: 0.8, lastModified: r.updatedAt ?? today });
+  for (const region of regions) {
+    if (isValidSitemapSegment(region.nameEn)) {
+      entries.push({ url: siteUrl("/region/" + region.nameEn), lastModified: region.updatedAt });
+    }
   }
 
-  // published listings — SEO slug when available
-  for (const p of props) {
-    urls.push({
-      url: `${base}/property/${p.slug ?? p.id}`,
-      changeFrequency: "weekly",
-      priority: 0.8,
-      lastModified: p.updatedAt ?? p.createdAt ?? today,
-    });
+  for (const property of properties) {
+    const segment = isValidSitemapSegment(property.slug) ? property.slug : null;
+    if (segment) {
+      entries.push({
+        url: siteUrl("/property/" + encodeURIComponent(segment)),
+        lastModified: property.updatedAt,
+      });
+    }
   }
 
-  // articles
-  for (const a of articles) {
-    urls.push({ url: `${base}/article/${a.slug}`, changeFrequency: "monthly", priority: 0.6, lastModified: a.updatedAt ?? today });
+  for (const article of articles) {
+    if (isValidSitemapSegment(article.slug) && isIndexableArticle(article.content)) {
+      entries.push({
+        url: siteUrl("/article/" + encodeURIComponent(article.slug)),
+        lastModified: article.updatedAt,
+      });
+    }
   }
 
-  // CMS pages
-  for (const c of pages) {
-    urls.push({ url: `${base}/page/${c.slug}`, changeFrequency: "monthly", priority: 0.4, lastModified: c.updatedAt ?? today });
+  for (const page of pages) {
+    if (isValidSitemapSegment(page.slug) && isIndexableCmsPage(page.content)) {
+      entries.push({
+        url: siteUrl("/page/" + encodeURIComponent(page.slug)),
+        lastModified: page.updatedAt,
+      });
+    }
   }
 
-  return urls;
+  const unique = new Map<string, MetadataRoute.Sitemap[number]>();
+  for (const entry of entries) unique.set(entry.url, entry);
+  return [...unique.values()];
 }

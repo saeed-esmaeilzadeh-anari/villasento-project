@@ -1,27 +1,23 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { Compass, Search } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "صفحه پیدا نشد | ویلاسنتو",
+  description: "صفحه‌ای که به دنبال آن هستید وجود ندارد یا در دسترس نیست.",
+  robots: { index: false, follow: true },
+};
 
 export default function NotFound() {
   return (
-    <div className="min-h-[60vh] grid place-items-center px-4" dir="rtl">
-      <div className="text-center max-w-md">
-        <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 text-primary grid place-items-center mb-5">
-          <Compass className="h-8 w-8" />
-        </div>
-        <h1 className="text-2xl font-black">صفحه موردنظر پیدا نشد</h1>
-        <p className="text-sm text-muted-foreground leading-7 mt-3">
-          ممکن است این آگهی حذف شده، به فروش رسیده یا نشانی اشتباه باشد.
-          از جستجوی املاک می‌توانید آگهی‌های فعال را ببینید.
-        </p>
-        <div className="flex flex-wrap justify-center gap-2 mt-6">
-          <Link href="/" className="rounded-xl bg-primary text-primary-foreground text-sm font-bold px-4 py-2.5 hover:opacity-90 transition-opacity">
-            بازگشت به صفحه اصلی
-          </Link>
-          <a href="/#/search" className="rounded-xl border text-sm font-bold px-4 py-2.5 hover:border-primary/40 transition-colors flex items-center gap-1.5">
-            <Search className="h-4 w-4" /> جستجوی املاک
-          </a>
-        </div>
-      </div>
-    </div>
+    <main className="mx-auto flex min-h-[65vh] max-w-xl flex-col items-center justify-center px-4 py-20 text-center" dir="rtl">
+      <p className="text-7xl font-black text-primary/20">۴۰۴</p>
+      <h1 className="mt-5 text-2xl font-black">صفحه موردنظر پیدا نشد</h1>
+      <p className="mt-3 text-sm leading-7 text-muted-foreground">
+        ممکن است آدرس تغییر کرده باشد یا آگهی دیگر در دسترس نباشد.
+      </p>
+      <Link href="/" className="mt-6 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground">
+        بازگشت به صفحه اصلی
+      </Link>
+    </main>
   );
 }

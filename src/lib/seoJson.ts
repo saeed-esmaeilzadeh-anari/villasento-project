@@ -3,14 +3,35 @@
  * NO "use client" — safe to call from server components AND client components.
  */
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "";
+const PRODUCTION_SITE_URL = "https://www.vilasento.ir";
 
-/** Canonical public URL for a clean (SSR) path — hash-SPA routes canonicalize to it */
-export function siteUrl(path = "/"): string {
-  return SITE_URL + (path.startsWith("/") ? path : "/" + path);
+function configuredSiteUrl() {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!configured) return process.env.NODE_ENV === "production" ? PRODUCTION_SITE_URL : "http://localhost:3000";
+
+  try {
+    const parsed = new URL(configured);
+    const localHost = ["localhost", "127.0.0.1", "0.0.0.0"].includes(parsed.hostname);
+    if (process.env.NODE_ENV === "production" && localHost) return PRODUCTION_SITE_URL;
+    return parsed.origin;
+  } catch {
+    return PRODUCTION_SITE_URL;
+  }
 }
 
-// ───────────────────────── JSON-LD builders ─────────────────────────
+const SITE_URL = configuredSiteUrl();
+
+export function siteUrl(path = "/"): string {
+  return new URL(path.startsWith("/") ? path : "/" + path, SITE_URL + "/").toString();
+}
+
+/** Safe JSON-LD serialization for text originating in the database or user input. */
+export function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
 
 export const JSONLD_IDS = {
   org: "vs-jsonld-org",
@@ -19,21 +40,20 @@ export const JSONLD_IDS = {
   faq: "vs-jsonld-faq",
 } as const;
 
-/** Organization / RealEstateAgent JSON-LD for the whole site (server-rendered too) */
-export function organizationJsonLd(phone: string, address: string, siteUrlOverride?: string) {
+export function organizationJsonLd(phone?: string, address?: string, siteUrlOverride?: string) {
   return {
     "@context": "https://schema.org",
     "@type": "RealEstateAgent",
     name: "ویلاسنتو",
     alternateName: "VillaSento",
     url: siteUrlOverride ?? siteUrl("/"),
-    telephone: phone,
-    address: { "@type": "PostalAddress", addressCountry: "IR", streetAddress: address },
+    ...(phone?.trim() ? { telephone: phone.trim() } : {}),
+    ...(address?.trim() ? { address: { "@type": "PostalAddress", addressCountry: "IR", streetAddress: address.trim() } } : {}),
     areaServed: "IR",
   };
 }
 
-/** WebSite + SearchAction (sitelinks searchbox) */
+/** SearchAction is omitted until the SPA search has a clean, query-addressable URL. */
 export function websiteJsonLd() {
   return {
     "@context": "https://schema.org",
@@ -42,18 +62,9 @@ export function websiteJsonLd() {
     alternateName: "VillaSento",
     url: siteUrl("/"),
     inLanguage: "fa-IR",
-    potentialAction: {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: `${siteUrl("/search")}?q={search_term_string}`,
-      },
-      "query-input": "required name=search_term_string",
-    },
   };
 }
 
-/** BreadcrumbList */
 export function breadcrumbJsonLd(items: { name: string; path: string }[]) {
   return {
     "@context": "https://schema.org",
@@ -67,7 +78,6 @@ export function breadcrumbJsonLd(items: { name: string; path: string }[]) {
   };
 }
 
-/** FAQPage */
 export function faqJsonLd(faqs: { question: string; answer: string }[]) {
   return {
     "@context": "https://schema.org",
@@ -80,7 +90,6 @@ export function faqJsonLd(faqs: { question: string; answer: string }[]) {
   };
 }
 
-/** RealEstateListing JSON-LD for the property page */
 export function listingJsonLd(p: {
   title: string; description: string; image: string | null;
   city?: string | null; province?: string | null; lat: number | null; lng: number | null;
@@ -101,7 +110,7 @@ export function listingJsonLd(p: {
     "@type": "RealEstateListing",
     name: p.title,
     description: p.description.slice(0, 300),
-    url: p.slugOrId ? siteUrl(`/property/${p.slugOrId}`) : `${siteUrl("/")}/#/property/${p.code}`,
+    ...(p.slugOrId ? { url: siteUrl("/property/" + encodeURIComponent(p.slugOrId)) } : {}),
     image: p.image ?? undefined,
     datePosted: p.updatedAt ?? undefined,
     address: {
@@ -110,7 +119,7 @@ export function listingJsonLd(p: {
       addressRegion: p.province ?? undefined,
       addressCountry: "IR",
     },
-    ...(p.lat && p.lng
+    ...(p.lat != null && p.lng != null
       ? { geo: { "@type": "GeoCoordinates", latitude: p.lat, longitude: p.lng } }
       : {}),
     offers,

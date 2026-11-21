@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useRoute, Link } from "@/lib/router";
 import { useSeo } from "@/lib/seo";
+import { isIndexableCmsPage } from "@/lib/seoText";
 import { EmptyState } from "@/components/site/misc";
 import { faNum, faDateTime, BRAND } from "@/lib/fa";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,7 @@ export function CmsPageView({ slugOverride, initialData }: { slugOverride?: stri
     title: page ? `${page.title} | ${BRAND}` : `${BRAND}`,
     description: page?.content.slice(0, 150),
     path: `/page/${slug}`,
-    noIndex: !page,
+    noIndex: !page || !isIndexableCmsPage(page.content),
   });
 
   if (isLoading) return <div className="py-32 text-center text-muted-foreground">در حال بارگذاری…</div>;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Link } from "@/lib/router";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/store";
 import { faNum, priceLine, TRANSACTION_TYPE_LABELS, TRANSACTION_TYPE_COLORS } from "@/lib/fa";
@@ -54,7 +54,7 @@ export function PropertyCard({ p, className }: { p: PropertyCardT; className?: s
   const share = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const url = `${window.location.origin}/#/property/${p.id}`;
+    const url = `${window.location.origin}/property/${encodeURIComponent(p.slug || p.id)}`;
     const text = `${p.title} — ${priceLine(p.transactionType, p.salePrice, p.rahnAmount, p.rentAmount)}`;
     try {
       if (navigator.share) await navigator.share({ title: p.title, text, url });
@@ -71,7 +71,7 @@ export function PropertyCard({ p, className }: { p: PropertyCardT; className?: s
       aria-label={`آگهی ${p.title}`}
     >
       {/* full-card link overlay (kept behind the action buttons) */}
-      <Link to={`/property/${p.id}`} className="absolute inset-0 z-[1]" aria-label={`مشاهده آگهی ${p.title}`}>
+      <Link href={`/property/${encodeURIComponent(p.slug || p.id)}`} prefetch={false} className="absolute inset-0 z-[1]" aria-label={`مشاهده آگهی ${p.title}`}>
         <span className="sr-only">مشاهده جزئیات {p.title}</span>
       </Link>
 

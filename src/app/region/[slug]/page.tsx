@@ -5,8 +5,9 @@ import { db } from "@/lib/db";
 import { regionBySlug, REGION_TYPES } from "@/server/services/regions";
 import { searchProperties } from "@/server/services/properties";
 import { PropertyCard } from "@/components/site/PropertyCard";
-import { breadcrumbJsonLd } from "@/lib/seoJson";
+import { breadcrumbJsonLd, serializeJsonLd } from "@/lib/seoJson";
 import { faNum, priceLine } from "@/lib/fa";
+import { MIN_INDEXABLE_LISTINGS, MIN_REGION_DESCRIPTION_LENGTH, plainTextLength, regionInventoryCount } from "@/server/seoIndexability";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -23,21 +24,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const region = await regionBySlug(slug);
   if (!region) return { title: "منطقه یافت نشد", robots: { index: false, follow: false } };
 
-  if (region.geoStatus !== "VERIFIED") {
-    return {
-      title: `${region.name} (در حال بررسی) | ویلاسنتو`,
-      robots: { index: false, follow: true },
-    };
-  }
+  const [inventoryCount] = await Promise.all([regionInventoryCount(region.nameEn)]);
+  const indexable =
+    region.geoStatus === "VERIFIED" &&
+    plainTextLength(region.description) >= MIN_REGION_DESCRIPTION_LENGTH &&
+    inventoryCount >= MIN_INDEXABLE_LISTINGS;
 
   const typeFa = REGION_TYPES[region.type] ?? "منطقه";
   const title = { absolute: `املاک ${region.name} | خرید، فروش، رهن و اجاره در ${region.name} | ویلاسنتو` };
-  const description = `آگهی‌های تأییدشده املاک ${region.name} (${typeFa} در ${region.ancestors[0]?.name ?? "شهرستان مشهد"})؛ خرید و فروش، رهن کامل و رهن و اجاره باغ، ویلا، باغ‌ویلا و زمین با مشخصات کامل سند و تماس مستقیم با مالک یا مشاور.`;
+  const description = `آگهی‌های املاک ${region.name}؛ ${typeFa} در ${region.ancestors[0]?.name ?? "محدوده پیرامونی"} با مشخصات واقعی آگهی‌ها و اطلاعات ثبت‌شده در ویلاسنتو.`;
   return {
     title,
     description,
     alternates: { canonical: `/region/${region.nameEn}` },
-    robots: { index: true, follow: true },
+    robots: { index: indexable, follow: true },
     openGraph: { title, description, url: `/region/${region.nameEn}`, type: "website" },
     twitter: { card: "summary_large_image", title, description },
   };
@@ -57,7 +57,6 @@ export default async function RegionPage({ params }: Props) {
   const isVerified = region.geoStatus === "VERIFIED";
   const breadcrumb = breadcrumbJsonLd([
     { name: "خانه", path: "/" },
-    { name: "املاک", path: "/search" },
     ...(region.ancestors.map((a) => ({ name: a.name, path: `/region/${a.nameEn}` })) as { name: string; path: string }[]),
     { name: `املاک ${region.name}`, path: `/region/${region.nameEn}` },
   ]);
@@ -67,13 +66,13 @@ export default async function RegionPage({ params }: Props) {
       <script
         id="vs-jsonld-breadcrumb-ssr-region"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumb) }}
       />
 
       <nav className="text-xs text-muted-foreground flex flex-wrap items-center gap-1 mb-4" aria-label="مسیر">
         <Link href="/" className="hover:text-primary">خانه</Link>
         <span>/</span>
-        <Link href="/search" className="hover:text-primary">املاک</Link>
+        <Link href="/#/search" className="hover:text-primary">املاک</Link>
         {region.ancestors.map((a) => (
           <span key={a.nameEn} className="flex items-center gap-1">
             <span>/</span>

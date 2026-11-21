@@ -65,12 +65,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  const cityInventory = new Map(
-    cityCounts.filter((row) => row.cityId).map((row) => [row.cityId!, row._count._all])
-  );
+  const cityInventory = new Map<string, number>();
+  for (const row of cityCounts) {
+    if (row.cityId) cityInventory.set(row.cityId, row._count._all);
+  }
   for (const city of cities) {
     const slug = cityNameToSlug(city.name);
-    if (cityInventory.get(city.id)! >= MIN_INDEXABLE_LISTINGS && isValidSitemapSegment(slug)) {
+    if ((cityInventory.get(city.id) ?? 0) >= MIN_INDEXABLE_LISTINGS && isValidSitemapSegment(slug)) {
       entries.push({ url: siteUrl("/city/" + slug) });
     }
   }

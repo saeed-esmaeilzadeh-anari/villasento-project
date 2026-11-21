@@ -152,7 +152,7 @@ export type PropertyDetailT = PropertyCardT & {
   images: string[];
   owner: OwnerT;
   similar: {
-    id: string; code: string; title: string; type: string; transactionType: string;
+    id: string; slug?: string | null; code: string; title: string; type: string; transactionType: string;
     city: string; salePrice: number | null; rahnAmount: number | null; rentAmount: number | null;
     bedrooms: number; landArea: number | null; buildArea: number | null;
     image: string | null;

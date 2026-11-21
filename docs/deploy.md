@@ -40,12 +40,37 @@ npm run db:generate
 
 طرح اسکیما PostgreSQL-ready است؛ برای مهاجرت: `provider = "postgresql"` در `prisma/schema.prisma` + `DATABASE_URL` جدید + `migrate deploy`. ستون‌های قیمت از نوع Float (محدوده دقیق تا ۹۰۰۰ تریلیون تومان) و هیچ جدولی حذف‌شدنی نیست.
 
-## ۳) Build و اجرا
+## ۳) Build، انتشار و اجرای Production
+
+در این Repository، GitHub Actions فقط TypeScript و Build را بررسی می‌کند؛ Workflow انتشار خودکار روی cPanel تعریف نشده است. بنابراین بعد از Merge باید نسخه جدید را روی هاست Deploy و برنامه Node.js را Restart کنید؛ مگر اینکه جداگانه Git Deployment یا Hook انتشار خودکار در cPanel راه‌اندازی کرده باشید.
+
+### روش مستقیم روی cPanel (Git Version Control)
+
+1. قبل از انتشار، از دیتابیس SQLite و پوشه `uploads/` نسخه پشتیبان بگیرید.
+2. سورس شاخه `main` را در Application Root به Commit نهایی به‌روزرسانی کنید.
+3. در فایل `.env` هاست مقدار زیر را تنظیم کنید:
+
+```env
+NODE_ENV=production
+NEXT_PUBLIC_SITE_URL=https://www.vilasento.ir
+```
+
+4. اگر `package-lock.json` تغییر کرده است، وابستگی‌ها را با `npm ci` نصب کنید.
+5. فرمان `npm run build` را اجرا کنید. این فرمان Prisma Client و Next.js را Build می‌کند و خروجی standalone را در Application Root آماده می‌کند.
+6. در cPanel → **Setup Node.js App** برنامه را Restart کنید و لاگ شروع سرور را بررسی کنید.
+
+### روش Build محلی و آپلود
+
+اگر Build را روی کامپیوتر انجام می‌دهید، پس از دریافت آخرین `main` و اجرای `npm ci`، مقدار `NEXT_PUBLIC_SITE_URL` را روی دامنه Production قرار دهید و `npm run build` را اجرا کنید. خروجی standalone و فایل‌های استاتیک را طبق ساختار Application Root هاست منتقل کنید.
+
+فایل‌های پایدار هاست را با خروجی Build جایگزین نکنید: `.env`، دیتابیس `db/`، تصاویر آپلودشده `uploads/` و `tmp/` باید حفظ شوند. پوشه Application Root باید خارج از دسترسی مستقیم عمومی `public_html` باشد. فایل `.env` و دیتابیس را داخل مخزن Git یا فضای عمومی وب قرار ندهید.
 
 ```bash
-bun run build     # خروجی standalone در .next/standalone
-bun run start     # اجرای Production (پورت 3000)
+npm run build
+# سپس Node.js Application را از cPanel راه‌اندازی مجدد کنید.
 ```
+
+اجرای Production از خروجی standalone و روی پورت تنظیم‌شده توسط cPanel انجام می‌شود.
 
 ## ۴) ذخیره‌سازی تصاویر
 
@@ -64,10 +89,14 @@ bun run start     # اجرای Production (پورت 3000)
 
 ## ۶) Health Check و پایش
 
-- `GET /api/home` → 200 یعنی DB + اپ سالم
-- `GET /api/sitemap` → 200 با XML
-- لاگ سرور: `bun run start` خروجی را به `server.log` tee می‌کند؛ در dev به `dev.log`
-- Audit Log ادمین (`/#/admin/audit`) عملیات حساس را ثبت می‌کند
+پس از Restart، این مسیرها را در دامنه Production بررسی کنید:
+
+- `GET /api/home` → باید 200 برگرداند و دسترسی API/دیتابیس را تأیید کند.
+- `GET /robots.txt` → باید 200 و متن Robots تولیدشده توسط Next.js را برگرداند.
+- `GET /sitemap.xml` → باید 200 و XML معتبر با ریشه `<urlset>` برگرداند.
+- `GET /api/sitemap` → مسیر قدیمی است و باید با 308 به `/sitemap.xml` منتقل شود؛ منبع اصلی Sitemap نیست.
+- لاگ سرور Node.js را در cPanel بررسی کنید.
+- Audit Log ادمین (`/#/admin/audit`) عملیات حساس را ثبت می‌کند.
 
 ## ۷) چک‌لیست امنیتی Production
 
@@ -86,8 +115,12 @@ bun run start     # اجرای Production (پورت 3000)
 2. **بلافاصله** وارد `/#/account/profile` شوید و رمز را عوض کنید
 3. یا حساب دمو را حذف و از پنل ادمین → کاربران، نقش SUPER_ADMIN به حساب واقعی بدهید
 
-## ۹) تنظیمات دامنه
+## ۹) تنظیمات دامنه و SEO
 
-- Caddy/Nginx → پروکسی به پورت 3000
-- `public/robots.txt` → خط `Sitemap:` را به `https://YOUR-DOMAIN/api/sitemap` تغییر دهید
-- برای ایندکس کامل بهتر، نقشه راه SSR در `docs/seo.md` آمده است
+- دامنه اصلی Canonical برابر `https://www.vilasento.ir` است؛ نسخه بدون www باید به نسخه www ریدایرکت شود.
+- متغیر `NEXT_PUBLIC_SITE_URL` در محیط Production باید دقیقاً `https://www.vilasento.ir` باشد.
+- فایل‌های `src/app/robots.ts` و `src/app/sitemap.ts` منبع تولید `/robots.txt` و `/sitemap.xml` هستند.
+- فایل ثابت `public/robots.txt` یا `public/sitemap.xml` نسازید؛ ممکن است خروجی پویا را بپوشاند.
+- دستور Robots به‌صورت خودکار این آدرس را معرفی می‌کند: `Sitemap: https://www.vilasento.ir/sitemap.xml`.
+- پس از Deploy، `https://www.vilasento.ir/sitemap.xml` را در Google Search Console ثبت کنید و چند URL را با URL Inspection بررسی کنید.
+- جزئیات انتخاب صفحات Indexable در `docs/seo.md` ثبت شده است.

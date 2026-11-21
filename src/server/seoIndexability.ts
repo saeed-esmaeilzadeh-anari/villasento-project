@@ -134,7 +134,13 @@ export async function indexableRegions(now = new Date()) {
   );
 }
 
+/**
+ * Accepts safe Latin or Persian slugs (including Persian ZWNJ) and rejects
+ * path separators, query/fragment characters, whitespace and placeholders.
+ * URL encoding is applied by the sitemap caller.
+ */
 export function isValidSitemapSegment(value: string | null | undefined): value is string {
-  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9-]{0,179}$/.test(value) &&
-    value.toLowerCase() !== "undefined" && value.toLowerCase() !== "null";
+  if (!value || value !== value.trim() || value.length > 180) return false;
+  if (["undefined", "null"].includes(value.toLowerCase())) return false;
+  return /^[\p{L}\p{N}][\p{L}\p{N}\p{M}\u200c_-]{0,179}$/u.test(value);
 }

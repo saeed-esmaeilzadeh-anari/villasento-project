@@ -140,9 +140,12 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
       headline: a.title,
       description: a.excerpt,
       image: a.coverUrl ?? undefined,
-      datePublished: a.publishedAt ?? a.updatedAt,
-      dateModified: a.updatedAt,
-      author: { "@type": "Person", name: a.authorName },
+      ...(a.publishedAt ? { datePublished: a.publishedAt } : {}),
+      ...(a.updatedAt ? { dateModified: a.updatedAt } : {}),
+      author: {
+        "@type": a.authorName === "تحریریه ویلاسنتو" ? "Organization" : "Person",
+        name: a.authorName,
+      },
       publisher: { "@type": "Organization", name: "ویلاسنتو" },
     } : null,
   });

@@ -65,9 +65,10 @@ export default async function PropertyDetailPage({ params }: Props) {
   if (p.slug && p.slug !== id) permanentRedirect("/property/" + encodeURIComponent(p.slug));
 
   const canonicalPath = `/property/${p.slug ?? p.id}`;
+  const isHouse = p.type === "HOUSE" || p.type === "APARTMENT";
   const landingPath = p.transactionType === "SALE"
-    ? p.type === "GARDEN" ? "/l/buy-garden" : p.type === "LAND" ? "/l/buy-land" : p.type === "HOUSE" || p.type === "APARTMENT" ? "/l/buy-house" : "/l/buy-villa"
-    : p.type === "HOUSE" || p.type === "APARTMENT" ? "/l/rent-house" : "/l/rent-villa";
+    ? p.type === "GARDEN" ? "/l/buy-garden" : p.type === "LAND" ? "/l/buy-land" : isHouse ? "/l/buy-house" : "/l/buy-villa"
+    : isHouse ? "/l/rent-house" : p.transactionType === "RAHN" ? "/l/rahn-villa" : "/l/rent-villa";
   const breadcrumb = breadcrumbJsonLd([
     { name: "خانه", path: "/" },
     { name: p.typeLabel, path: landingPath },

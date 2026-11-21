@@ -161,7 +161,7 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
   return (
     <article className="mx-auto max-w-3xl px-4 py-8">
       <nav className="text-xs text-muted-foreground mb-4">
-        <Link href="/" className="hover:text-primary">خانه</Link> / <Link to="/articles" className="hover:text-primary">مقالات</Link> / <span className="text-foreground">{a.title}</span>
+        <Link href="/" className="hover:text-primary">خانه</Link> / <Link href="/articles" className="hover:text-primary">مقالات</Link> / <span className="text-foreground">{a.title}</span>
       </nav>
 
       {a.coverUrl && (

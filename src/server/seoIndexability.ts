@@ -7,7 +7,7 @@ import {
   isIndexableArticle,
   isIndexableCmsPage,
 } from "@/lib/seoText";
-export { plainTextLength, isIndexableArticle, isIndexableCmsPage };
+export { MIN_REGION_DESCRIPTION_LENGTH, plainTextLength, isIndexableArticle, isIndexableCmsPage };
 
 export const MIN_INDEXABLE_LISTINGS = 3;
 export function publishedPropertyWhere(now = new Date()): Prisma.PropertyWhereInput {

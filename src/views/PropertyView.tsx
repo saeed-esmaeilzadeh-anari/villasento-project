@@ -345,7 +345,7 @@ export function PropertyView({ idOverride, initialData, suppressJsonLd }: { idOv
               <h2 className="font-black text-sm mb-3 flex items-center gap-1.5">املاک مشابه <ChevronLeft className="h-4 w-4 text-muted-foreground" /></h2>
               <div className="space-y-3">
                 {p.similar.slice(0, 4).map((s) => (
-                  <a key={s.id} href={`/property/${s.id}`} className="flex gap-3 group">
+                  <a key={s.id} href={`/property/${encodeURIComponent(s.slug || s.id)}`} className="flex gap-3 group">
                     <span className="w-16 h-14 rounded-lg bg-muted overflow-hidden shrink-0">
                       <SmartImage src={s.image} alt={s.title} />
                     </span>

@@ -5,18 +5,34 @@
  */
 import generateSitemap from "../src/app/sitemap";
 
+const configuredOrigin =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://www.vilasento.ir"
+    : "http://localhost:3000");
+const expectedOrigin = new URL(configuredOrigin).origin;
+
 async function main() {
   const entries = await generateSitemap();
   const urls = entries.map((entry) => entry.url);
   const duplicates = urls.filter((url, index) => urls.indexOf(url) !== index);
-  const invalid = urls.filter((url) =>
-    !url.startsWith("https://www.vilasento.ir/") ||
-    url.includes("localhost") ||
-    url.includes("#") ||
-    url.endsWith("/undefined") || url.includes("/undefined/") ||
-    url.endsWith("/null") || url.includes("/null/")
-  );
+  const invalid = urls.filter((rawUrl) => {
+    try {
+      const url = new URL(rawUrl);
+      const segments = url.pathname.split("/").map((segment) => decodeURIComponent(segment).toLowerCase());
+      return (
+        url.origin !== expectedOrigin ||
+        url.hash !== "" ||
+        url.search !== "" ||
+        segments.some((segment) => segment === "undefined" || segment === "null") ||
+        !["http:", "https:"].includes(url.protocol)
+      );
+    } catch {
+      return true;
+    }
+  });
 
+  console.log("Expected origin: " + expectedOrigin);
   console.log("Sitemap entries: " + urls.length);
   console.log("Duplicate URLs: " + duplicates.length);
   console.log("Invalid URLs: " + invalid.length);

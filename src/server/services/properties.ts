@@ -472,7 +472,7 @@ export async function propertyDetail(
           since: prop.host.createdAt,
         },
     similar: similar.map((s) => ({
-      id: s.id, code: s.code, title: s.title, type: s.type, transactionType: s.transactionType,
+      id: s.id, slug: s.slug, code: s.code, title: s.title, type: s.type, transactionType: s.transactionType,
       city: s.city?.name ?? s.region?.name ?? "", salePrice: s.salePrice, rahnAmount: s.rahnAmount, rentAmount: s.rentAmount,
       bedrooms: s.bedrooms, landArea: s.landArea, buildArea: s.buildArea,
       image: s.images[0]?.url ?? null,

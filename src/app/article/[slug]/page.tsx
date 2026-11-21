@@ -58,9 +58,12 @@ export default async function ArticlePage({ params }: Props) {
     headline: a.title,
     description: a.excerpt,
     image: a.coverUrl ?? undefined,
-    datePublished: a.publishedAt ?? a.updatedAt,
-    dateModified: a.updatedAt,
-    author: { "@type": "Person", name: a.authorName },
+    ...(a.publishedAt ? { datePublished: a.publishedAt } : {}),
+    ...(a.updatedAt ? { dateModified: a.updatedAt } : {}),
+    author: {
+      "@type": a.authorName === "تحریریه ویلاسنتو" ? "Organization" : "Person",
+      name: a.authorName,
+    },
     publisher: { "@type": "Organization", name: "ویلاسنتو" },
     mainEntityOfPage: siteUrl(`/article/${slug}`),
   };

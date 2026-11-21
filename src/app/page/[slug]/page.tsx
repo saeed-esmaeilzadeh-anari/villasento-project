@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cmsPage } from "@/server/services/public";
 import { CmsPageClient } from "@/views/CmsPageClient";
 import type { CmsPageT } from "@/views/CmsPageView";
+import { isIndexableCmsPage } from "@/server/seoIndexability";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: { absolute: `${page.title} | ویلاسنتو` },
     description: page.content.replace(/\s+/g, " ").slice(0, 160),
     alternates: { canonical: `/page/${slug}` },
-    robots: { index: true, follow: true },
+    robots: { index: isIndexableCmsPage(page.content), follow: true },
     openGraph: { title: page.title, description: page.content.slice(0, 160), url: `/page/${slug}`, type: "article" },
   };
 }

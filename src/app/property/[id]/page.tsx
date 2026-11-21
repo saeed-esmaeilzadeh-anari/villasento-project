@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { propertyDetail } from "@/server/services/properties";
-import { listingJsonLd, breadcrumbJsonLd, siteUrl } from "@/lib/seoJson";
+import { notFound, permanentRedirect } from "next/navigation";
+import { cityNameToSlug, propertyDetail } from "@/server/services/properties";
+import { listingJsonLd, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seoJson";
 import { listingSeoTitle, listingSeoDescription } from "@/lib/seoTitles";
 import { PropertyDetailClient } from "@/views/PropertyDetailClient";
 import type { PropertyDetailT } from "@/lib/api";
 import { SITE_NAME } from "@/lib/seoConstants";
+import Link from "next/link";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -61,13 +62,17 @@ export default async function PropertyDetailPage({ params }: Props) {
   const { id } = await params;
   const p = await safeDetail(id);
   if (!p) notFound();
+  if (p.slug && p.slug !== id) permanentRedirect("/property/" + encodeURIComponent(p.slug));
 
   const canonicalPath = `/property/${p.slug ?? p.id}`;
+  const isHouse = p.type === "HOUSE" || p.type === "APARTMENT";
+  const landingPath = p.transactionType === "SALE"
+    ? p.type === "GARDEN" ? "/l/buy-garden" : p.type === "LAND" ? "/l/buy-land" : isHouse ? "/l/buy-house" : "/l/buy-villa"
+    : isHouse ? "/l/rent-house" : p.transactionType === "RAHN" ? "/l/rahn-villa" : "/l/rent-villa";
   const breadcrumb = breadcrumbJsonLd([
     { name: "خانه", path: "/" },
-    { name: "املاک", path: "/search" },
-    { name: p.typeLabel, path: `/search?types=${p.type}` },
-    ...(p.city ? [{ name: p.city, path: `/city/${encodeURIComponent(p.city)}` }] : p.region ? [{ name: p.region.name, path: `/region/${p.region.nameEn}` }] : []),
+    { name: p.typeLabel, path: landingPath },
+    ...(p.city ? [{ name: p.city, path: `/city/${cityNameToSlug(p.city)}` }] : p.region ? [{ name: p.region.name, path: `/region/${p.region.nameEn}` }] : []),
     { name: p.title, path: canonicalPath },
   ]);
   const listing = listingJsonLd({ ...p, slugOrId: p.slug ?? p.id });
@@ -77,13 +82,33 @@ export default async function PropertyDetailPage({ params }: Props) {
       <script
         id="vs-jsonld-listing-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(listing) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(listing) }}
       />
       <script
         id="vs-jsonld-breadcrumb-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumb) }}
       />
+      <main className="mx-auto max-w-7xl px-4 pt-5">
+        <nav className="text-xs text-muted-foreground flex flex-wrap items-center gap-1 mb-4" aria-label="مسیر">
+          <Link href="/" className="hover:text-primary">خانه</Link>
+          <span>/</span>
+          <Link href={landingPath} className="hover:text-primary">{p.typeLabel}</Link>
+          {p.city ? (
+            <>
+              <span>/</span>
+              <Link href={"/city/" + cityNameToSlug(p.city)} className="hover:text-primary">{p.city}</Link>
+            </>
+          ) : p.region ? (
+            <>
+              <span>/</span>
+              <Link href={"/region/" + p.region.nameEn} className="hover:text-primary">{p.region.name}</Link>
+            </>
+          ) : null}
+          <span>/</span>
+          <span className="text-foreground line-clamp-1">{p.title}</span>
+        </nav>
+      </main>
       <PropertyDetailClient id={p.id} initialData={p} />
     </>
   );

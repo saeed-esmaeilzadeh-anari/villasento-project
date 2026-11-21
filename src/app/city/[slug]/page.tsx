@@ -4,8 +4,9 @@ import Link from "next/link";
 import { searchProperties, citySlugToName, cityNameToSlug, type PropertyCardData } from "@/server/services/properties";
 import { db } from "@/lib/db";
 import { PropertyCard } from "@/components/site/PropertyCard";
-import { breadcrumbJsonLd } from "@/lib/seoJson";
+import { breadcrumbJsonLd, serializeJsonLd } from "@/lib/seoJson";
 import { faNum, priceLine } from "@/lib/fa";
+import { cityInventoryCount, MIN_INDEXABLE_LISTINGS } from "@/server/seoIndexability";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -16,6 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const name = citySlugToName(slug);
   const city = await db.city.findFirst({ where: { name }, include: { province: true } });
   if (!city) return { title: "شهر یافت نشد", robots: { index: false, follow: false } };
+  const inventoryCount = await cityInventoryCount(city.id);
 
   const title = { absolute: `املاک ${city.name} | خرید، فروش، رهن و اجاره ${city.name} | ویلاسنتو` };
   const description = `فهرست آگهی‌های تأییدشده املاک ${city.name} در استان ${city.province.name}؛ خرید و فروش، رهن کامل و رهن و اجاره ویلا، باغ‌ویلا، خانه و آپارتمان با مشخصات کامل سند و تماس مستقیم با مالک یا مشاور.`;
@@ -23,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `/city/${cityNameToSlug(city.name)}` },
-    robots: { index: true, follow: true },
+    robots: { index: inventoryCount >= MIN_INDEXABLE_LISTINGS, follow: true },
     openGraph: { title, description, url: `/city/${cityNameToSlug(city.name)}`, type: "website" },
     twitter: { card: "summary_large_image", title, description },
   };
@@ -47,7 +49,6 @@ export default async function CityPage({ params }: Props) {
 
   const breadcrumb = breadcrumbJsonLd([
     { name: "خانه", path: "/" },
-    { name: "املاک", path: "/search" },
     { name: `املاک ${city.name}`, path: `/city/${cityNameToSlug(city.name)}` },
   ]);
 
@@ -56,13 +57,13 @@ export default async function CityPage({ params }: Props) {
       <script
         id="vs-jsonld-breadcrumb-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumb) }}
       />
 
       <nav className="text-xs text-muted-foreground flex items-center gap-1 mb-4" aria-label="مسیر">
         <Link href="/" className="hover:text-primary">خانه</Link>
         <span>/</span>
-        <Link href="/search" className="hover:text-primary">املاک</Link>
+        <Link href="/#/search" className="hover:text-primary">املاک</Link>
         <span>/</span>
         <span className="text-foreground">املاک {city.name}</span>
       </nav>

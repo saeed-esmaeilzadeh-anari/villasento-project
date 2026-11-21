@@ -21,7 +21,7 @@ export type Landing = {
 };
 
 const LINK_SELL = { label: "ثبت آگهی فروش ملک", href: "/new-listing" };
-const LINK_SEARCH = { label: "جستجوی همه املاک", href: "/search" };
+const LINK_SEARCH = { label: "جستجوی همه املاک", href: "/#/search" };
 
 export const LANDINGS: Landing[] = [
   {

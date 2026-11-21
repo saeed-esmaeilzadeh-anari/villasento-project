@@ -2,8 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Link, navigate } from "@/lib/router";
+import Link from "next/link";
 import { useSeo } from "@/lib/seo";
+import { isIndexableArticle } from "@/lib/seoText";
 import { faNum, faDate } from "@/lib/fa";
 import { EmptyState } from "@/components/site/misc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -83,7 +84,7 @@ export function ArticlesView() {
         <>
           <div className="grid gap-5 md:grid-cols-3">
             {data!.items.map((a) => (
-              <Link key={a.id} to={`/article/${a.slug}`} className="group rounded-2xl border bg-card overflow-hidden hover:border-primary/30 hover:shadow-md transition-all flex flex-col">
+              <Link key={a.id} href={`/article/${a.slug}`} className="group rounded-2xl border bg-card overflow-hidden hover:border-primary/30 hover:shadow-md transition-all flex flex-col">
                 <div className="aspect-[16/9] bg-muted overflow-hidden">
                   {a.coverUrl && <img src={a.coverUrl} alt={a.title} loading="lazy" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />}
                 </div>
@@ -132,7 +133,7 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
     description: a?.excerpt,
     path: `/article/${slug}`,
     image: a?.coverUrl ?? null,
-    noIndex: !!error,
+    noIndex: !!error || !isIndexableArticle(a?.content),
     jsonLd: a && !suppressJsonLd ? {
       "@context": "https://schema.org",
       "@type": "Article",
@@ -141,7 +142,7 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
       image: a.coverUrl ?? undefined,
       datePublished: a.publishedAt ?? a.updatedAt,
       dateModified: a.updatedAt,
-      author: { "@type": "Organization", name: "ویلاسنتو" },
+      author: { "@type": "Person", name: a.authorName },
       publisher: { "@type": "Organization", name: "ویلاسنتو" },
     } : null,
   });
@@ -152,7 +153,7 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
   if (error || !a) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <EmptyState icon={<Newspaper className="h-12 w-12" />} title="مقاله یافت نشد" action={<Button asChild><Link to="/articles">همه مقالات</Link></Button>} />
+        <EmptyState icon={<Newspaper className="h-12 w-12" />} title="مقاله یافت نشد" action={<Button asChild><Link href="/articles">همه مقالات</Link></Button>} />
       </div>
     );
   }
@@ -160,7 +161,7 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
   return (
     <article className="mx-auto max-w-3xl px-4 py-8">
       <nav className="text-xs text-muted-foreground mb-4">
-        <Link to="/" className="hover:text-primary">خانه</Link> / <Link to="/articles" className="hover:text-primary">مقالات</Link> / <span className="text-foreground">{a.title}</span>
+        <Link href="/" className="hover:text-primary">خانه</Link> / <Link href="/articles" className="hover:text-primary">مقالات</Link> / <span className="text-foreground">{a.title}</span>
       </nav>
 
       {a.coverUrl && (
@@ -192,7 +193,7 @@ export function ArticleView({ slug, initialData, suppressJsonLd }: { slug: strin
           <h2 className="font-black text-sm mb-4">مقالات مرتبط</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {a.related.map((r) => (
-              <Link key={r.id} to={`/article/${r.slug}`} className="group flex gap-3 rounded-2xl border bg-card p-3 hover:border-primary/30 transition-colors">
+              <Link key={r.id} href={`/article/${r.slug}`} className="group flex gap-3 rounded-2xl border bg-card p-3 hover:border-primary/30 transition-colors">
                 <span className="w-20 h-16 rounded-lg bg-muted overflow-hidden shrink-0">
                   {r.coverUrl && <img src={r.coverUrl} alt={r.title} loading="lazy" className="h-full w-full object-cover" />}
                 </span>

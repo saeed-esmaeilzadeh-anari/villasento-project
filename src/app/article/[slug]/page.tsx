@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { articleBySlug } from "@/server/services/content";
 import { ArticleClient } from "@/views/ArticleClient";
 import type { ArticleDetailT } from "@/views/ArticlesView";
-import { breadcrumbJsonLd, siteUrl } from "@/lib/seoJson";
+import { isIndexableArticle } from "@/server/seoIndexability";
+import { breadcrumbJsonLd, serializeJsonLd, siteUrl } from "@/lib/seoJson";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: { absolute: `${a.title} | مجله ویلاسنتو` },
     description: a.excerpt || a.content.slice(0, 150),
     alternates: { canonical },
-    robots: { index: true, follow: true },
+    robots: { index: isIndexableArticle(a.content), follow: true },
     openGraph: {
       title: a.title,
       description: a.excerpt,
@@ -59,7 +60,7 @@ export default async function ArticlePage({ params }: Props) {
     image: a.coverUrl ?? undefined,
     datePublished: a.publishedAt ?? a.updatedAt,
     dateModified: a.updatedAt,
-    author: { "@type": "Organization", name: "ویلاسنتو" },
+    author: { "@type": "Person", name: a.authorName },
     publisher: { "@type": "Organization", name: "ویلاسنتو" },
     mainEntityOfPage: siteUrl(`/article/${slug}`),
   };
@@ -69,12 +70,12 @@ export default async function ArticlePage({ params }: Props) {
       <script
         id="vs-jsonld-article-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleLd) }}
       />
       <script
         id="vs-jsonld-breadcrumb-ssr"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumb) }}
       />
       <ArticleClient slug={slug} initialData={a} />
     </>

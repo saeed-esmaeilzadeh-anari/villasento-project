@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { getAllSettings } from "@/server/settings";
-import { organizationJsonLd, websiteJsonLd } from "@/lib/seoJson";
+import { organizationJsonLd, serializeJsonLd, siteUrl, websiteJsonLd } from "@/lib/seoJson";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "";
+
 
 const FALLBACK = {
   title: "ویلاسنتو | خرید، فروش، رهن و اجاره باغ، ویلا و باغ‌ویلا",
@@ -18,11 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   let title = FALLBACK.title;
   let description = FALLBACK.description;
   let keywords: string[] = [
-    "ویلاسنتو", "Villasento", "VillaSento", "ویلا", "باغ ویلا", "باغ‌ویلا",
-    "خرید ویلا", "فروش ویلا", "اجاره ویلا", "رهن ویلا", "ویلا شمال",
-    "خرید ملک", "فروش ملک", "اجاره ملک", "املاک", "املاک تهران", "املاک مشهد",
-    "مشاور املاک", "آگهی ملک", "آگهی ویلا", "خرید خانه", "فروش خانه", "اجاره خانه",
-    "خرید باغ", "فروش باغ", "رهن و اجاره باغ",
+    "ویلاسنتو", "VillaSento", "خرید ویلا", "فروش ویلا", "اجاره ویلا", "خرید باغ", "خرید زمین", "املاک تفریحی",
   ];
   let googleVerification: string | undefined;
   let ogImage: string | undefined;
@@ -40,11 +36,14 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 
   return {
-    metadataBase: SITE_URL ? new URL(SITE_URL) : null,
+    metadataBase: new URL(siteUrl("/")),
     title: { default: title, template: `%s | ${siteName}` },
     description,
     keywords,
     applicationName: siteName,
+    authors: [{ name: siteName, url: siteUrl("/") }],
+    creator: siteName,
+    publisher: siteName,
     robots: {
       index: true,
       follow: true,
@@ -52,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     manifest: "/manifest.webmanifest",
     icons: { icon: "/icon.svg", apple: "/icon.svg" },
-    alternates: { canonical: "/" },
+    alternates: { canonical: siteUrl("/") },
     ...(googleVerification ? { verification: { google: googleVerification } } : {}),
     openGraph: {
       title,
@@ -60,7 +59,7 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       locale: "fa_IR",
       siteName,
-      url: "/",
+      url: siteUrl("/"),
       images: [{ url: ogImage ?? "/og-cover.png", width: 1200, height: 630, alt: siteName }],
     },
     twitter: {
@@ -84,26 +83,26 @@ const THEME_BOOTSTRAP = `(function(){try{var p=JSON.parse(localStorage.getItem("
 
 /** Server-rendered JSON-LD so crawlers see it without executing JS */
 async function SiteJsonLd() {
-  let phone = "09356966365";
-  let address = "تهران، ایران";
+  let phone: string | undefined;
+  let address: string | undefined;
   try {
     const s = await getAllSettings();
     if (s["site.supportPhone"]) phone = s["site.supportPhone"];
     if (s["site.address"]) address = s["site.address"];
   } catch { /* defaults */ }
-  const org = organizationJsonLd(phone, address, SITE_URL || undefined);
+  const org = organizationJsonLd(phone, address, siteUrl("/"));
   const website = websiteJsonLd();
   return (
     <>
       <script
         type="application/ld+json"
         id="vs-jsonld-org"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(org) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(org) }}
       />
       <script
         type="application/ld+json"
         id="vs-jsonld-website"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(website) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(website) }}
       />
     </>
   );

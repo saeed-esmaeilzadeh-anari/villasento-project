@@ -51,6 +51,19 @@ function AppShell() {
      
   }, [route.params]);
 
+  // Legacy public hash links must resolve to real, server-rendered Next.js routes.
+  useEffect(() => {
+    if (route.path === "/articles") {
+      window.location.replace("/articles");
+      return;
+    }
+    const match = route.path.match(/^\/(property|article|page)\/([^/]+)$/);
+    if (!match) return;
+    let segment = match[2];
+    try { segment = decodeURIComponent(segment); } catch { /* keep original segment */ }
+    window.location.replace("/" + match[1] + "/" + encodeURIComponent(segment));
+  }, [route.path]);
+
   const path = route.path;
 
   const isPanel = path.startsWith("/host") || path.startsWith("/admin") || path.startsWith("/account") || path.startsWith("/new-listing");

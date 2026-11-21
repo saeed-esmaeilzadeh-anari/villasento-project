@@ -74,7 +74,7 @@ export function Footer() {
                 {site?.supportPhone ? faNum(site.supportPhone) : faNum("09356966365")}
               </a>
             </li>
-            <li className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 shrink-0" /> {site?.email ?? "info@villasento.ir"}</li>
+            <li className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 shrink-0" /> {site?.email ?? "info@vilasento.ir"}</li>
             <li className="flex items-start gap-2"><MapPin className="h-3.5 w-3.5 shrink-0 mt-1" /> {site?.address ?? "تهران"}</li>
             <li className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 shrink-0" /> شنبه تا پنجشنبه ۹ تا ۱۸</li>
             <li className="pt-2 text-[11px]">© {faNum(j.jy)} {site?.name ?? BRAND} — تمامی حقوق محفوظ است</li>

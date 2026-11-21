@@ -8,7 +8,7 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   "site.name": "ویلاسنتو",
   "site.nameEn": "VillaSento",
   "site.supportPhone": "09356966365",
-  "site.email": "info@villasento.ir",
+  "site.email": "info@vilasento.ir",
   "site.address": "تهران، ایران",
   "site.workingHours": "شنبه تا پنجشنبه ۹ تا ۱۸",
 

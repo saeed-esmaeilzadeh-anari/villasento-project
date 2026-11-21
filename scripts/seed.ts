@@ -502,7 +502,7 @@ async function main() {
       { key: "site.nameEn", value: "VillaSento" },
       { key: "site.tagline", value: "مرجع خرید، فروش، رهن و اجاره باغ، ویلا و باغ‌ویلا" },
       { key: "site.supportPhone", value: "09356966365" },
-      { key: "site.email", value: "info@villasento.ir" },
+      { key: "site.email", value: "info@vilasento.ir" },
       { key: "site.address", value: "تهران، ایران" },
       { key: "site.workingHours", value: "شنبه تا پنجشنبه ۹ تا ۱۸" },
       { key: "site.social", value: "[]" }, // only fill with REAL social accounts
